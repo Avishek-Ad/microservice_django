@@ -20,14 +20,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-%($u%n^5e_%58w8#-y5s1i(8f-l2v$w01@xvz&(fj&bgj1rl%)'
+SECRET_KEY = 'django-insecure-3m9hncon3a*@en(suzp-2qx=*(nmn@tuxb5*+2m^%$evticjlx'
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
 ALLOWED_HOSTS = []
-
-CORS_ALLOW_ALL_ORIGINS = True
 
 
 # Application definition
@@ -45,13 +43,12 @@ INSTALLED_APPS = [
     'corsheaders',
     
     # Internal apps
-    'jobs',
+    'recruitment',
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
-    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -85,7 +82,7 @@ WSGI_APPLICATION = 'core.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'user_db.sqlite3',
+        'NAME': BASE_DIR / 'admin_db.sqlite3',
     }
 }
 
