@@ -51,9 +51,10 @@ class ApplyJobAPIView(APIView):
         }
         
         try:
-            redis_client.publish('hr_event', json.dumps(payload)) # channel is hr_event and message is payload
+            redis_client.publish('admin_events', json.dumps(payload)) # channel is hr_event and message is payload
+            print("Published application to redis channel")
         except redis.RedisError:
-            
+            print("[ERROR] Application payload to admin_service failed")
             pass # silent fail
         
         return Response({

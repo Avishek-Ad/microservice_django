@@ -10,7 +10,7 @@ class JobPosting(models.Model):
     def __str__(self):
         return f"{self.title} {self.department}"
     
-class AdminApplicationReviewStatus(models.Model):
+class AdminApplicationReviewStatus(models.TextChoices):
     NEW = 'new_application', 'New Application'
     UNDER_REVIEW = 'under_review', 'Under Review'
     HIRED = 'hired', 'Hired'
@@ -21,7 +21,11 @@ class AdminApplicationReview(models.Model):
     candidate_name = models.CharField(max_length=200)
     candidate_email = models.EmailField()
     job = models.ForeignKey(JobPosting, on_delete=models.CASCADE)
-    review_status = models.CharField(max_length=20)
+    review_status = models.CharField(
+        max_length=20, 
+        choices=AdminApplicationReviewStatus.choices,
+        default=AdminApplicationReviewStatus.NEW
+        )
     logged_at = models.DateTimeField(auto_now_add=True)
     
     def __str__(self):

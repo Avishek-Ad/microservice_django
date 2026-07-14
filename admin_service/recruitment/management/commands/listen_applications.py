@@ -12,9 +12,9 @@ class Command(BaseCommand):
         r = redis.Redis(host=settings.REDIS_HOST, port=settings.REDIS_PORT, db=0)
         pubsub = r.pubsub()
         
-        pubsub.subscribe("hr_events")
+        pubsub.subscribe("admin_events")
         
-        self.stdout.write(self.style.success("Successfully listeningto hr_events channel ..."))
+        self.stdout.write(self.style.SUCCESS("Successfully listening to admin_events channel ..."))
         
         # contineous listening loop
         for message in pubsub.listen():

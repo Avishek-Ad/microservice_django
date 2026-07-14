@@ -18,7 +18,7 @@ class AdminApplicationReviewAdmin(admin.ModelAdmin):
         'logged_at'
     ]
     list_filter = ['review_status', 'logged_at']
-    search_fields = ['candidatecandidate_email_email', 'candidate_name']
+    search_fields = ['candidate_email', 'candidate_name']
     
     def get_job_title(self, obj):
         return obj.job.title

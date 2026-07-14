@@ -27,4 +27,5 @@ def publish_application_status_to_user_service(sender, instance, created, **kwar
             redis_client.publish('user_events', json.dumps(payload))
             print(f"[SIGNAL OUT] Sent application update for Application {instance.user_application_id}: {instance.review_status}")
         except redis.RedisError:
+            print("[ERROR] Application status payload to user_service failed")
             pass

@@ -14,7 +14,7 @@ class Command(BaseCommand):
         
         pubsub.subscribe("user_events")
         
-        self.stdout.write(self.style.success("Successfully listeningto user_events channel ..."))
+        self.stdout.write(self.style.SUCCESS("Successfully listening to user_events channel ..."))
         
         # contineous listening loop
         for message in pubsub.listen():
@@ -39,7 +39,7 @@ class Command(BaseCommand):
                             
                         job_application.save()
                         
-                        self.stdout.write(self.style.SUCCESS(f"[ALERT] Job Application {user_application_id} status successfully changed to reflect hr's review!"))
+                        self.stdout.write(self.style.SUCCESS(f"[ALERT] Job Application {user_application_id} status successfully changed to reflect admin's review!"))
                         
                     except JobApplication.DoesNotExist:
                         self.stdout(self.style.WARNING(f"[ERROR] Received job application for non existing user_application_id: {user_application_id}"))
