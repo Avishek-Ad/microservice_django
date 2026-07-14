@@ -12,8 +12,9 @@ redis_client = redis.Redis(host=settings.REDIS_HOST, port=settings.REDIS_PORT, d
 class JobListAPIView(APIView):
     def get(self, request):
         try:
-            admin_url = "http://localhost:8001/api/jobs"
+            admin_url = f"{settings.ADMIN_MICROSERVICE_URL}/api/posted_jobs/"
             response = requests.get(admin_url, timeout=5)
+            print(response)
             if response.status_code == status.HTTP_200_OK:
                 return Response(response.json(), status=response.status_code)
             return Response({"error": "Admin service failed to provide data"}, status=response.status_code)

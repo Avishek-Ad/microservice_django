@@ -1,0 +1,76 @@
+version: '3.8'
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: microservice_redis
+    ports:
+      - 6379:6379
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  admin-service:
+    build:
+      context: ./admin_service
+      dockerfile: Dockerfile
+    container_name: admin_app
+    command: python manage.py runserver 0.0.0.0:8001
+    volumes:
+      - ./admin_service:/app
+    ports:
+      - 8001:8001
+    depends_on:
+      - redis
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+
+  admin_worker:
+    build:
+      context: ./admin_service
+      dockerfile: Dockerfile
+    container_name: admin_app_worker
+    command: python manage.py listen_applications
+    volumes:
+      - ./admin_service:/app
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+  
+  user-service:
+    build:
+      context: ./user_service
+      dockerfile: Dockerfile
+    container_name: user_app
+    command: python manage.py runserver 0.0.0.0:8000
+    volumes:
+      - ./user_service:/app
+    ports:
+      - 8000:8000
+    depends_on:
+      - redis
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - ADMIN_MICROSERVICE_URL=http://admin-service:8001
+     
+  user_worker:
+    build:
+      context: ./user_service
+      dockerfile: Dockerfile
+    container_name: user_app_worker
+    command: python manage.py listen_status_update
+    volumes:
+      - ./user_service:/app
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379

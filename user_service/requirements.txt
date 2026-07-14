@@ -3,3 +3,4 @@ djangorestframework==3.17.1
 redis==8.0.1
 requests==2.34.2
 django-cors-headers==4.9.0
+python-dotenv==1.2.2
