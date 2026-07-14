@@ -1,6 +1,6 @@
 # Job Application Submission and Review Microservice Architecture
 
-## A microservice built using Django, which uses Redis for asynchronous event-driven communication between microservices
+## A decoupled microservice architecture built with Django, utilizing Redis Pub/Sub channels , asynchronous event streaming.
 
 This project implements a decoupled, distributed microservices architecture modeled after a real-world enterprise Applicant Tracking System (ATS). It isolates candidate operations (**User Service**) from recruiter operations (**Admin Service**) using a strict **Database-per-Service** design pattern. By leveraging a centralized Redis message broker, the platform facilitates fast synchronous REST API communication alongside highly scalable, bi-directional asynchronous event workflows. This setup ensures that high-volume operations—such as heavy job application spikes and real-time recruitment status adjustments—are handled instantly without thread-blocking dependencies, memory leaks, or database cross-contamination.
 
