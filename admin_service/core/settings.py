@@ -22,14 +22,14 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-3m9hncon3a*@en(suzp-2qx=*(nmn@tuxb5*+2m^%$evticjlx'
+SECRET_KEY = os.getenv("SECRET_KEY")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.getenv("DEBUG") == "1"
 
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS").split(",")
+
 CORS_ALLOW_ALL_ORIGINS = True
-
 
 # Application definition
 
@@ -126,5 +126,5 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
-REDIS_HOST = os.getenv('REDIS_HOST')
-REDIS_PORT = int(os.getenv('REDIS_PORT'))
+REDIS_HOST = os.getenv('REDIS_HOST', "localhost")
+REDIS_PORT = int(os.getenv('REDIS_PORT', 6379))

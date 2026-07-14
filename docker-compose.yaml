@@ -24,11 +24,10 @@ services:
       - 8001:8001
     depends_on:
       - redis
-    environment:
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
+    env_file:
+      - ./admin_service/.env
 
-  admin_worker:
+  admin-worker:
     build:
       context: ./admin_service
       dockerfile: Dockerfile
@@ -39,9 +38,8 @@ services:
     depends_on:
       redis:
         condition: service_healthy
-    environment:
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
+    env_file:
+      - ./admin_service/.env
   
   user-service:
     build:
@@ -55,12 +53,12 @@ services:
       - 8000:8000
     depends_on:
       - redis
+    env_file:
+      - ./user_service/.env
     environment:
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
       - ADMIN_MICROSERVICE_URL=http://admin-service:8001
      
-  user_worker:
+  user-worker:
     build:
       context: ./user_service
       dockerfile: Dockerfile
@@ -71,6 +69,5 @@ services:
     depends_on:
       redis:
         condition: service_healthy
-    environment:
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
+    env_file:
+      - ./user_service/.env
