@@ -1,4 +1,5 @@
 from django.db import models
+from django.contrib.postgres.fields import JSONField
 
 class candidateProfile(models.Model):
     full_name = models.CharField(max_length=200)
@@ -26,3 +27,12 @@ class JobApplication(models.Model):
     
     def __str__(self):
         return "Application {self.id} for job {self.job_id} by {self.candidate.email}"
+    
+class PublishedEvent(models.Model):
+    channel = models.CharField(max_length=200)
+    payload = JSONField()
+    is_consumed = models.BooleanField(default=False)
+    
+    def __str__(self):
+        return self.channel
+    

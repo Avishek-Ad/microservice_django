@@ -3,9 +3,10 @@ from rest_framework.response import Response
 from rest_framework import status
 from .models import candidateProfile, JobApplication
 from django.conf import settings
+from .models import PublishedEvent
+from django.db import transaction
 import requests
 import redis
-import json
 
 redis_client = redis.Redis(host=settings.REDIS_HOST, port=settings.REDIS_PORT, db=0)
 
@@ -32,31 +33,29 @@ class ApplyJobAPIView(APIView):
         if not email or not full_name or not job_id:
             return Response({'error': "Missing mandatory fields"}, status=status.HTTP_400_BAD_REQUEST)
         
-        # getting or creating candidate record
-        candidate, _ = candidateProfile.objects.get_or_create(
+        # TODO: put all this db create in transaction atomic
+        with transaction.atomic():
+            # getting or creating candidate record
+            candidate, _ = candidateProfile.objects.get_or_create(
             email=email,
             defaults={
                 'full_name': full_name,
                 'skills': skills
             }
         )
-        
-        application = JobApplication.objects.create(candidate=candidate, job_id=job_id)
-        
-        payload = {
+            application = JobApplication.objects.create(candidate=candidate, job_id=job_id)
+            payload = {
             "event": "application_created",
             "user_application_id": application.id,
             "candidate_name": candidate.full_name,
             "candidate_email": candidate.email,
             "job_id": job_id
         }
+            PublishedEvent.objects.create(
+            channel='admin_events',
+            payload=payload
+        )
         
-        try:
-            redis_client.publish('admin_events', json.dumps(payload)) # channel is hr_event and message is payload
-            print("Published application to redis channel")
-        except redis.RedisError:
-            print("[ERROR] Application payload to admin_service failed")
-            pass # silent fail
         
         return Response({
             "message": "Application submitted successfully",
