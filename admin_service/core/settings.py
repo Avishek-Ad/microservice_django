@@ -84,8 +84,12 @@ WSGI_APPLICATION = 'core.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'admin_db.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': os.getenv('DB_NAME', 'postgres'),
+        'USER': os.getenv('DB_USER', 'postgres'),
+        'PASSWORD': os.getenv('DB_PASSWORD', 'postgres'),
+        'HOST': os.getenv('DB_HOST', 'db'),
+        'PORT': os.getenv('DB_PORT', '5432'),
     }
 }
 
@@ -126,9 +130,15 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
-REDIS_HOST = os.getenv('REDIS_HOST', "localhost")
-REDIS_PORT = int(os.getenv('REDIS_PORT', 6379))
-
 KAFKA_BOOTSTRAP_SERVER = os.getenv('KAFKA_BOOTSTRAP_SERVER', 'localhost:9092')
 
-# celery 
+# celery-worker
+CELERY_BROKER_URL = os.getenv('REDIS_URL')
+
+# celery-beats
+CELERY_BEAT_SCHEDULE = {
+    "matchmaking-every-300ms": {
+        "task": "recruitment.task.publishing_events_in_db_to_kafka",
+        "schedule": 0.6,  # Run every 600 milliseconds
+    },
+}

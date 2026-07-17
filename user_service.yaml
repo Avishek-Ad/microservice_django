@@ -1,0 +1,95 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    ports:
+      - 6379:6379
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+  
+  user-service:
+    build:
+      context: ./user_service
+      dockerfile: Dockerfile
+    container_name: user_app
+    command: python manage.py runserver 0.0.0.0:8000
+    volumes:
+      - ./user_service:/app
+    ports:
+      - 8000:8000
+    depends_on:
+      - user-postgres
+    env_file:
+      - ./user_service/.env
+    environment:
+      - ADMIN_MICROSERVICE_URL=http://admin-service:8001
+  
+  user-postgres:
+    image: postgres:16-alpine
+    container_name: user_postgres
+    restart: always
+    environment:
+      POSTGRES_DB: user_postgres_db
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: user_postgress_secure_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - user_postgres_data:/var/lib/postgresql/data
+
+  user-worker:
+    build:
+      context: ./user_service
+      dockerfile: Dockerfile
+    container_name: user_app_worker
+    command: python manage.py kafka_consumer
+    volumes:
+      - ./user_service:/app
+    depends_on:
+      redis:
+        condition: service_healthy
+    env_file:
+      - ./user_service/.env
+
+  celery-worker:
+    build:
+      context: ./user_service
+      dockerfile: Dockerfile
+    container_name: user_app_celery_worker
+    command: celery -A core worker -l info
+    depends_on:
+      redis:
+        condition: service_healthy
+    env_file:
+      - ./user_service/.env
+    environment:
+      - REDIS_URL=redis://redis:6379
+    restart: always
+    profiles:
+      - celery
+  
+  celery-beats:
+    build:
+      context: ./user_service
+      dockerfile: Dockerfile
+    container_name: user_app_celery_beats
+    command: celery -A core beat -l info
+    depends_on:
+      redis:
+        condition: service_healthy
+    env_file:
+      - ./user_service/.env
+    environment:
+      - REDIS_URL=redis://redis:6379
+    restart: always
+    profiles:
+      - celery
+
+volumes:
+  user_postgres_data: {}

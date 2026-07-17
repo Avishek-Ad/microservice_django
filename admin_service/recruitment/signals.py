@@ -1,11 +1,7 @@
 from django.db.models.signals import post_save
 from django.dispatch import receiver
-from django.conf import settings
 from .models import AdminApplicationReview, AdminApplicationReviewStatus, PublishedEvent
 from datetime import datetime, timezone
-import redis
-
-redis_client = redis.Redis(host=settings.REDIS_HOST, port=settings.REDIS_PORT, db=0)
 
 @receiver(post_save, sender=AdminApplicationReview)
 def publish_application_status_to_user_service(sender, instance, created, **kwargs):

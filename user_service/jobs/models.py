@@ -1,5 +1,5 @@
 from django.db import models
-from django.contrib.postgres.fields import JSONField
+from django.db.models import JSONField
 
 class candidateProfile(models.Model):
     full_name = models.CharField(max_length=200)

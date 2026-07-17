@@ -7,9 +7,6 @@ from .models import PublishedEvent
 from django.db import transaction
 from datetime import datetime, timezone
 import requests
-import redis
-
-redis_client = redis.Redis(host=settings.REDIS_HOST, port=settings.REDIS_PORT, db=0)
 
 class JobListAPIView(APIView):
     def get(self, request):
