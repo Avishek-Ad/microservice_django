@@ -1,5 +1,5 @@
 from django.core.management.base import BaseCommand
-from recruitment.models import JobPosting, AdminApplicationReview
+from logs.models import SystemLog
 from django.conf import settings
 from confluent_kafka import Consumer, KafkaError, KafkaException
 import signal # for stopping loop without data loss
@@ -26,7 +26,7 @@ class Command(BaseCommand):
         consumer = Consumer(conf)
         
         # subscribe to topic
-        topics = ['user_events']
+        topics = ['admin_events', 'user_events', 'audit_events']
         self.stdout.write(self.style.SUCCESS(f"Subscribing to topics: {topics}"))
         consumer.subscribe(topics)
 
@@ -69,7 +69,7 @@ class Command(BaseCommand):
                 payload = json.loads(value)
                  
                 # call functions based on payload['event']
-                if payload['event'] == "application_created":
+                if payload['event'] in ["application_created", "application_status_update"]:
                     self.handle_application_created_event(payload)
                 else:
                     self.stdout.write(self.style.WARNING(f"Unknown Event Arrived {payload['event']}"))
@@ -85,23 +85,12 @@ class Command(BaseCommand):
         self.shutdown_requested = True
         
     def handle_application_created_event(self, payload):
-        user_application_id = payload['user_application_id']
-        name = payload['candidate_name']
-        email = payload['candidate_email']
-        job_id = payload['job_id']
+        extra_fields = payload['extra']
         
-        try:
-            job_posting = JobPosting.objects.get(id=job_id)
-                        
-            # creating review record
-            AdminApplicationReview.objects.create(
-                user_application_id=user_application_id,
-                candidate_name=name,
-                candidate_email=email,
-                job=job_posting
-            )
-                        
-            self.stdout.write(self.style.SUCCESS(f"[ALERT] Application {user_application_id} successfully mapped to Admin DB review dashboard!"))
-                        
-        except JobPosting.DoesNotExist:
-            self.stdout(self.style.WARNING(f"[ERROR] Received job posting for non existing job_id: {job_id}")) 
+        log_type = extra_fields.get('log_type')
+        sender = extra_fields.get('sender')
+        receiver = extra_fields.get('receiver')
+        event_type = extra_fields.get('event_type')
+        occured_at = extra_fields.get('occured_at')
+        
+        # TODO: use nosql database 

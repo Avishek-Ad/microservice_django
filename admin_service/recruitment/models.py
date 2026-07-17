@@ -36,6 +36,7 @@ class AdminApplicationReview(models.Model):
 class PublishedEvent(models.Model):
     channel = models.CharField(max_length=200)
     payload = JSONField()
+    extra = JSONField(default=dict, blank=True)
     is_consumed = models.BooleanField(default=False)
     
     def __str__(self):

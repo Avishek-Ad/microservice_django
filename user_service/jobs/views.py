@@ -5,6 +5,7 @@ from .models import candidateProfile, JobApplication
 from django.conf import settings
 from .models import PublishedEvent
 from django.db import transaction
+from datetime import datetime, timezone
 import requests
 import redis
 
@@ -51,9 +52,18 @@ class ApplyJobAPIView(APIView):
             "candidate_email": candidate.email,
             "job_id": job_id
         }
+            # for logging
+            extra = {
+                "log_type": "EVENT",
+                "sender": "user_service",
+                "receiver": "admin_service", # intended receiver
+                "event_type": "application_created",
+                "occured_at": datetime.now(timezone.utc()).isoformat()
+            }
             PublishedEvent.objects.create(
             channel='admin_events',
-            payload=payload
+            payload=payload,
+            extra=extra
         )
         
         

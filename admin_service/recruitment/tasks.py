@@ -19,7 +19,10 @@ def publishing_events_in_db_to_kafka():
         
     for publishedEvent in publishedEvents:
         try:
-            payload = publishedEvent.payload
+            payload = {
+                **publishedEvent.payload,
+                "extra":publishedEvent.extra
+            }
             
             value_bytes = json.dumps(payload).encode('utf-8')
             key_bytes = str(publishedEvent.id).encode('utf-8') # for ordering

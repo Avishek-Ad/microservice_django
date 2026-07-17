@@ -2,6 +2,7 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.conf import settings
 from .models import AdminApplicationReview, AdminApplicationReviewStatus, PublishedEvent
+from datetime import datetime, timezone
 import redis
 
 redis_client = redis.Redis(host=settings.REDIS_HOST, port=settings.REDIS_PORT, db=0)
@@ -22,13 +23,15 @@ def publish_application_status_to_user_service(sender, instance, created, **kwar
             "new_status": instance.review_status
         }
         
-        # try:
-        #     redis_client.publish('user_events', json.dumps(payload))
-        #     print(f"[SIGNAL OUT] Sent application update for Application {instance.user_application_id}: {instance.review_status}")
-        # except redis.RedisError:
-        #     print("[ERROR] Application status payload to user_service failed")
-        #     pass
+        extra = {
+            "log_type": "EVENT",
+            "sender": "admin_service",
+            "receiver": "user_service", # intended receiver
+            "event_type": "application_created",
+            "occured_at": datetime.now(timezone.utc()).isoformat()
+        }
         PublishedEvent.objects.create(
             channel='user_events',
-            payload=payload
+            payload=payload,
+            extra=extra
         )
