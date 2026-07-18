@@ -21,7 +21,7 @@ class AdminApplicationReview(models.Model):
     user_application_id = models.IntegerField() # application id form user_service
     candidate_name = models.CharField(max_length=200)
     candidate_email = models.EmailField()
-    job = models.ForeignKey(JobPosting, on_delete=models.CASCADE)
+    job = models.ForeignKey(JobPosting, on_delete=models.CASCADE, related_name='applications')
     review_status = models.CharField(
         max_length=20, 
         choices=AdminApplicationReviewStatus.choices,
