@@ -142,7 +142,7 @@ CELERY_BROKER_URL = os.getenv('REDIS_URL')
 # celery-beats
 CELERY_BEAT_SCHEDULE = {
     "matchmaking-every-300ms": {
-        "task": "recruitment.task.publishing_events_in_db_to_kafka",
+        "task": "jobs.tasks.publishing_events_in_db_to_kafka",
         "schedule": 0.6,  # Run every 600 milliseconds
     },
 }

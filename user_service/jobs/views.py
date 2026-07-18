@@ -80,7 +80,6 @@ class ApplyJobAPIView(APIView):
         if not email or not full_name or not job_id:
             return Response({'error': "Missing mandatory fields"}, status=status.HTTP_400_BAD_REQUEST)
         
-        # TODO: put all this db create in transaction atomic
         with transaction.atomic():
             # getting or creating candidate record
             candidate, _ = candidateProfile.objects.get_or_create(
@@ -104,7 +103,7 @@ class ApplyJobAPIView(APIView):
                 "sender": "user_service",
                 "receiver": "admin_service", # intended receiver
                 "event_type": "application_created",
-                "occured_at": datetime.now(timezone.utc()).isoformat()
+                "occured_at": datetime.now(timezone.utc).isoformat()
             }
             PublishedEvent.objects.create(
                 channel='admin_events',

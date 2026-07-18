@@ -1,57 +1,52 @@
 from celery import shared_task
 from .models import PublishedEvent
 from .kafka_client import get_kafka_producer, delivery_report
-from django.db import transaction
 import json
 
 @shared_task
 def publishing_events_in_db_to_kafka():
     producer = get_kafka_producer()
     
-    with transaction.atomic():
-        publishedEvents = list(PublishedEvent.objects.filter(is_consumed=False).select_for_update(skip_locked=True))
-        # select_for_update() prevents other concurrent tasks from picking up the same records
-    
-    if publishedEvents is None:
+    publishedEvents = PublishedEvent.objects.filter(is_consumed=False)[:50]
+        
+    if not publishedEvents.exists():
         return "No New Events found"
-        
-    successfully_published_ids = []
-        
+            
+    success_count = 0
+            
     for publishedEvent in publishedEvents:
         try:
             payload = {
                 **publishedEvent.payload,
-                "extra":publishedEvent.extra
+                "extra": publishedEvent.extra
             }
-            
+                
             value_bytes = json.dumps(payload).encode('utf-8')
-            key_bytes = str(publishedEvent.id).encode('utf-8') # for ordering
-                
+            key_bytes = str(publishedEvent.id).encode('utf-8')
+                    
             producer.produce(
-            topic=publishedEvent.channel,
-            key=key_bytes,
-            value=value_bytes,
-            callback=delivery_report
-        )
-                
-            publishedEvent.is_consumed = True
-            successfully_published_ids.append(publishedEvent.id)
-                
-        except Exception as e:
-            print(f"Failed to queue events {publishedEvent.id}: {str(e)}")
-        
-    producer.poll(0) # server local back and send outstanding cllback
-        
-    # will give if count of the number messages that fails
-    unflushed_count = producer.flush(timeout=10.0)
-        
-    if unflushed_count > 0:
-        raise RuntimeError(f"Failed to flush {unflushed_count} messages to Kafka. Rolling back transaction.")
-        
-    if successfully_published_ids:
-        with transaction.atomic():
-            PublishedEvent.objects.bulk_update(successfully_published_ids, fields=['is_consumed'])
-    
-    return f"successfully Published {len(publishedEvents)} vents"
-        
+                topic=publishedEvent.channel,
+                key=key_bytes,
+                value=value_bytes,
+                callback=delivery_report
+            )
             
+            # Force network flush right here to get confirmation for *this* message
+            unflushed_count = producer.flush(timeout=2.0)
+            
+            if unflushed_count > 0:
+                print(f"Failed to flush message to Kafka for event {publishedEvent.id}. Skipping DB update.")
+                continue
+         
+            # Update individually only after successful flush confirmation
+            publishedEvent.is_consumed = True
+            publishedEvent.save()
+            success_count += 1
+                    
+        except Exception as e:
+            print(f"Failed to queue event {publishedEvent.id}: {str(e)}")
+            
+        # Triggers the background delivery_report callback engine 
+        producer.poll(0)
+            
+    return f"Successfully Published {success_count} events one-by-line"

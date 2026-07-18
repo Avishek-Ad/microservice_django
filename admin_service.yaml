@@ -1,6 +1,24 @@
 version: '3.8'
 
 services:
+  redis:
+    image: redis:7-alpine
+    container_name: shared_redis
+    ports:
+      - 6379:6379
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    networks:
+      - microservice-network
+  
   admin-postgres:
     image: postgres:16-alpine
     container_name: admin_postgres
@@ -34,8 +52,55 @@ services:
       - admin-postgres
     env_file:
       - ./admin_service/.env
+    networks:
+      - microservice-network
+
+  admin-worker:
+    build:
+      context: ./admin_service
+      dockerfile: Dockerfile
+    container_name: admin_app_worker
+    command: python manage.py kafka_consumer
+    volumes:
+      - ./admin_service:/app
+    env_file:
+      - ./admin_service/.env
+    networks:
+      - microservice-network
+  
+  admin-celery-worker:
+    build:
+      context: ./admin_service
+      dockerfile: Dockerfile
+    container_name: admin_app_celery_worker
+    command: celery -A core worker -l info
+    depends_on:
+      redis:
+        condition: service_healthy
+    env_file:
+      - ./admin_service/.env
     environment:
-      - KAFKA_BOOTSTRAP_SERVER=kafka:29092
+      - REDIS_URL=redis://shared_redis:6379
+    restart: always
+    profiles:
+      - celery
+    networks:
+      - microservice-network
+  
+  admin-celery-beats:
+    build:
+      context: ./admin_service
+      dockerfile: Dockerfile
+    container_name: admin_app_celery_beat
+    command: celery -A core beat -l info
+    depends_on:
+      redis:
+        condition: service_healthy
+    env_file:
+      - ./admin_service/.env
+    environment:
+      - REDIS_URL=redis://shared_redis:6379
+    restart: always
     networks:
       - microservice-network
 

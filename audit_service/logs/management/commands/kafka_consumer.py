@@ -21,6 +21,7 @@ class Command(BaseCommand):
             'auto.offset.reset': 'earliest',          
             'enable.auto.commit': False,    # Disable auto-commit for manual acknowledgment
             'session.timeout.ms': 45000,    # Detect worker crashes within 45s
+            'allow.auto.create.topics': True, # allow consumer to create or wait for missing topics dynamically
         }
         
         consumer = Consumer(conf)
@@ -34,22 +35,27 @@ class Command(BaseCommand):
         
         try:
             while not self.shutdown_requested:
-                # poll for a single message
-                msg = consumer.poll(timeout=1.0) # in second
+                msg = consumer.poll(timeout=1.0)
                 
                 if msg is None:
                     continue
                 
                 if msg.error():
-                    if msg.error().code() == KafkaError._PARTITION_EOF:
-                        # end of partitioned events
+                    error_code = msg.error().code()
+                    
+                    if error_code == KafkaError._PARTITION_EOF:
                         self.stdout.write(f"Reached end of partition: {msg.topic()} [{msg.partition()}]")
+                    elif error_code == KafkaError.UNKNOWN_TOPIC_OR_PART:
+                        self.stdout.write(self.style.WARNING(
+                            f"Topic {msg.topic()} not available yet. Retrying..."
+                        ))
                     else:
-                        raise KafkaException(msg.error())
+                        # 🚀 CHANGE HERE: Log the error instead of raising an exception!
+                        # This keeps the loop running even if Kafka hiccups temporarily.
+                        self.stderr.write(self.style.ERROR(f"Kafka notice/error: {msg.error()}"))
                 else:
-                    # a valid message
                     self.process_message(msg, consumer)
-                
+                    
         except Exception as e:
             self.stderr.write(self.style.ERROR(f"Fatal consumer error: {e}"))
         finally:
@@ -73,7 +79,9 @@ class Command(BaseCommand):
                     self.handle_application_created_event(payload)
                 else:
                     self.stdout.write(self.style.WARNING(f"Unknown Event Arrived {payload['event']}"))
-                    
+            
+            consumer.commit(msg, asynchronous=False)
+            
         except Exception as e:
             self.stderr.write(self.style.ERROR(f"Error processing message: {e}"))
     
