@@ -8,6 +8,7 @@ volumes:
   admin_postgres_data: {}
   user_postgres_data: {}
   mongo_data: {}
+  kafka_data: {}
 
 services:
   # =======================================================

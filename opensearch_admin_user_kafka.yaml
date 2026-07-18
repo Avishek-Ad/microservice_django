@@ -10,6 +10,7 @@ volumes:
   opensearch-data:
     driver: local
   mongo_data: {}
+  kafka_data: {}
 
 services:
   # =======================================================

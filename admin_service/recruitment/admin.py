@@ -1,5 +1,7 @@
 from django.contrib import admin
-from .models import JobPosting, AdminApplicationReview
+from .models import JobPosting, AdminApplicationReview, PublishedEvent
+
+admin.site.register(PublishedEvent)
 
 @admin.register(JobPosting)
 class JobPostingAdmin(admin.ModelAdmin):

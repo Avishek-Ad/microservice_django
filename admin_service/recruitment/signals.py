@@ -24,7 +24,7 @@ def publish_application_status_to_user_service(sender, instance, created, **kwar
             "sender": "admin_service",
             "receiver": "user_service", # intended receiver
             "event_type": "application_status_update",
-            "occured_at": datetime.now(timezone.utc()).isoformat()
+            "occured_at": datetime.now(timezone.utc).isoformat()
         }
         PublishedEvent.objects.create(
             channel='admin_events',
@@ -40,13 +40,13 @@ def send_job_for_indexing(sender, instance, created, **kwargs):
             "description": instance.description,
             "department": instance.department,
             "is_active": instance.is_active,
-            "created_at": instance.created_at
+            "created_at": instance.created_at.isoformat() if instance.created_at else None
         }
     extra = {
             "log_type": "EVENT",
             "sender": "admin_service",
             "receiver": "user_service", # intended receiver
-            "occured_at": datetime.now(timezone.utc()).isoformat()
+            "occured_at": datetime.now(timezone.utc).isoformat()
         }
     
     if created:
@@ -73,7 +73,7 @@ def send_delete_event_for_job(sender, instance, **kwargs):
         "sender": "admin_service",
         "receiver": "user_service", # intended receiver
         "event_type": "job_deleted",
-        "occured_at": datetime.now(timezone.utc()).isoformat()
+        "occured_at": datetime.now(timezone.utc).isoformat()
     }
     PublishedEvent.objects.create(
         channel='admin_events',
