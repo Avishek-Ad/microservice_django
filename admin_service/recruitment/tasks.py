@@ -28,7 +28,7 @@ def publishing_events_in_db_to_kafka():
             key_bytes = str(publishedEvent.id).encode('utf-8') # for ordering
                 
             producer.produce(
-            topic="admin_events",
+            topic=publishedEvent.channel,
             key=key_bytes,
             value=value_bytes,
             callback=delivery_report

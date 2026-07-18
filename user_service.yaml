@@ -12,6 +12,52 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
+    networks:
+      - microservice-network
+
+  opensearch-node:
+    image: opensearchproject/opensearch:2.14.0
+    container_name: opensearch-node
+    environment:
+      - cluster.name=opensearch-cluster
+      - node.name=opensearch-node
+      - discovery.type=single-node         
+      - bootstrap.memory_lock=true         
+      - "OPENSEARCH_JAVA_OPTS=-Xms256m -Xmx256m" # allow initial and max storage of 256mb
+      - DISABLE_SECURITY_PLUGIN=true
+      - DISABLE_INSTALL_DEMO_CONFIG=true  
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    volumes:
+      - opensearch-data:/usr/share/opensearch/data
+    ports:
+      - "9200:9200" # OpenSearch HTTP REST API port
+    networks:
+      - microservice-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9200/_cluster/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:2.14.0
+    container_name: opensearch-dashboards
+    ports:
+      - "5601:5601" # UI port accessible at http://localhost:5601
+    environment:
+      - OPENSEARCH_HOSTS=["http://opensearch-node:9200"]
+      - DISABLE_SECURITY_PLUGIN=true                     # Must match the node security setting
+    depends_on:
+      opensearch-node:
+        condition: service_healthy
+    networks:
+      - microservice-network
   
   user-service:
     build:
@@ -25,10 +71,14 @@ services:
       - 8000:8000
     depends_on:
       - user-postgres
+      - opensearch-node
     env_file:
       - ./user_service/.env
     environment:
       - ADMIN_MICROSERVICE_URL=http://admin-service:8001
+      - OPENSEARCH_URL=http://opensearch-node:9200
+    networks:
+      - microservice-network
   
   user-postgres:
     image: postgres:16-alpine
@@ -42,20 +92,28 @@ services:
       - "5432:5432"
     volumes:
       - user_postgres_data:/var/lib/postgresql/data
+    networks:
+      - microservice-network
 
   user-worker:
     build:
       context: ./user_service
       dockerfile: Dockerfile
     container_name: user_app_worker
-    command: python manage.py kafka_consumer
+    command: sh -c "python manage.py init_opensearch && python manage.py kafka_consumer"
     volumes:
       - ./user_service:/app
     depends_on:
       redis:
         condition: service_healthy
+      opensearch-node:
+        condition: service_healthy
     env_file:
       - ./user_service/.env
+    environment:
+      - OPENSEARCH_URL=http://opensearch-node:9200
+    networks:
+      - microservice-network
 
   celery-worker:
     build:
@@ -70,9 +128,12 @@ services:
       - ./user_service/.env
     environment:
       - REDIS_URL=redis://redis:6379
+      - OPENSEARCH_URL=http://opensearch-node:9200
     restart: always
     profiles:
       - celery
+    networks:
+      - microservice-network
   
   celery-beats:
     build:
@@ -87,9 +148,18 @@ services:
       - ./user_service/.env
     environment:
       - REDIS_URL=redis://redis:6379
+      - OPENSEARCH_URL=http://opensearch-node:9200
     restart: always
     profiles:
       - celery
+    networks:
+      - microservice-network
 
 volumes:
   user_postgres_data: {}
+  opensearch-data:
+    driver: local
+
+networks:
+  microservice-network:
+    driver: bridge

@@ -2,6 +2,7 @@ from django.core.management.base import BaseCommand
 from jobs.models import JobApplication, JobApplicationStatus
 from django.conf import settings
 from confluent_kafka import Consumer, KafkaError, KafkaException
+from opensearch_client import get_opensearch_client
 import signal # for stopping loop without data loss
 import json
 
@@ -71,16 +72,18 @@ class Command(BaseCommand):
                 # call functions based on payload['event']
                 if payload['event'] == "application_status_update":
                     self.handle_application_status_update(payload)
+                elif payload['event'] in ["job_created", "job_updated"]:
+                    self.handle_index_or_update_document(payload)
+                elif payload['event'] == "job_deleted":
+                    self.handle_delete_document(payload)
                 else:
                     self.stdout.write(self.style.WARNING(f"Unknown Event Arrived {payload['event']}"))
-                    
+            # commit offset anually after successful processing
+            consumer.commit(msg, asynchronous=False)
         except Exception as e:
             self.stderr.write(self.style.ERROR(f"Error processing message: {e}"))
     
     def handle_shutdown(self, signum, frame):
-        """
-        Catches termination signals to break out of the while loop cleanly.
-        """
         self.stdout.write(self.style.WARNING(f"\nSignal {signum} received. Initiating graceful shutdown..."))
         self.shutdown_requested = True
         
@@ -94,11 +97,35 @@ class Command(BaseCommand):
             if new_status == "hired":
                 job_application.status = JobApplicationStatus.APPROVED
             elif new_status == "rejected":
-                job_application.status == JobApplicationStatus.REJECTED
+                job_application.status = JobApplicationStatus.REJECTED
             
             job_application.save()    
             
             self.stdout.write(self.style.SUCCESS(f"[ALERT] Job Application {user_application_id} status successfully changed to reflect admin's review!"))
         except JobApplication.DoesNotExist:
             self.stdout(self.style.WARNING(f"[ERROR] Received job application for non existing user_application_id: {user_application_id}"))
-               
+            
+    def handle_index_or_update_document(self, payload):
+        os_client = get_opensearch_client()
+        job_id = str(payload.get("job_id"))
+        document_body={
+            "title": payload.get("title"),
+            "description": payload.get("description"),
+            "department": payload.get("department"),
+            "is_active": payload.get("is_active"),
+            "created_at": payload.get("created_at")
+        }
+        os_client.index(
+            index="jobs",
+            id=job_id,
+            body=document_body,
+            refresh=True
+        )
+        self.stdout.write(f"Synced job {job_id} to OpenSearch.")
+    
+    def handle_delete_document(self, payload):
+        os_client = get_opensearch_client()
+        job_id = str(payload.get("job_id"))
+        if os_client.exists(index="jobs", id=job_id):
+            os_client.delete(index="jobs", id=job_id)
+            self.stdout.write(f"Deleted job {job_id} from OpenSearch.")

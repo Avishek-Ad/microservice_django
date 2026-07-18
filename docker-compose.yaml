@@ -1,8 +1,23 @@
 version: '3.8'
+
+networks:
+  microservice-network:
+    driver: bridge
+  
+volumes:
+  admin_postgres_data: {}
+  user_postgres_data: {}
+  opensearch-data:
+    driver: local
+  mongo_data: {}
+
 services:
-  redis: # remove use kafka
+  # =======================================================
+  # SHARED INFRASTRUCTURE (shared across all services)
+  # =======================================================
+  redis:
     image: redis:7-alpine
-    container_name: microservice_redis
+    container_name: shared_redis
     ports:
       - 6379:6379
     restart: unless-stopped
@@ -11,23 +26,98 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
-
-  admin-service:
-    build:
-      context: ./admin_service
-      dockerfile: Dockerfile
-    container_name: admin_app
-    command: python manage.py runserver 0.0.0.0:8001
-    volumes:
-      - ./admin_service:/app
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    networks:
+      - microservice-network
+  
+  kafka:
+    image: bitnami/kafka:3.7-debian-12
+    container_name: shared_kafka
+    restart: always
     ports:
-      - 8001:8001
-    depends_on:
-      - redis
-      - admin-postgres
-    env_file:
-      - ./admin_service/.env
+      - "9092:9092"
+    environment:
+      # KRaft Settings (ZooKeeper-less)
+      - KAFKA_CFG_NODE_ID=1
+      - KAFKA_CFG_PROCESS_ROLES=controller,broker
+      - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=1@kafka:9093
+      # Listeners configuration
+      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093
+      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092
+      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      # Allow topics to auto-create during development/production initialization
+      - KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE=true
+    volumes:
+      - kafka_data:/bitnami/kafka
+    healthcheck:
+      # Verifies Kafka is fully listening and accepting socket metadata handshakes
+      test: ["CMD-SHELL", "kafka-broker-api-versions.sh --bootstrap-server localhost:9092 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+    networks:
+      - microservice-network
 
+  opensearch-node:
+    image: opensearchproject/opensearch:2.14.0
+    container_name: opensearch-node
+    environment:
+      - cluster.name=opensearch-cluster
+      - node.name=opensearch-node
+      - discovery.type=single-node         
+      - bootstrap.memory_lock=true         
+      - "OPENSEARCH_JAVA_OPTS=-Xms256m -Xmx256m" # allow initial and max storage of 256mb
+      - DISABLE_SECURITY_PLUGIN=true
+      - DISABLE_INSTALL_DEMO_CONFIG=true  
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    volumes:
+      - opensearch-data:/usr/share/opensearch/data
+    ports:
+      - "9200:9200" # OpenSearch HTTP REST API port
+    networks:
+      - microservice-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9200/_cluster/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+  
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:2.14.0
+    container_name: opensearch-dashboards
+    ports:
+      - "5601:5601" # UI port accessible at http://localhost:5601
+    environment:
+      - OPENSEARCH_HOSTS=["http://opensearch-node:9200"]
+      - DISABLE_SECURITY_PLUGIN=true                     # Must match the node security setting
+    depends_on:
+      opensearch-node:
+        condition: service_healthy
+    networks:
+      - microservice-network
+  
+  # =======================================================
+  # ADMIN SERVICE MICROSTACK
+  # =======================================================
   admin-postgres:
     image: postgres:16-alpine
     container_name: admin_postgres
@@ -40,23 +130,114 @@ services:
       - "5433:5433"
     volumes:
       - admin_postgres_data:/var/lib/postgresql/data
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    networks:
+      - microservice-network
+  
+  admin-service:
+    build:
+      context: ./admin_service
+      dockerfile: Dockerfile
+    container_name: admin_app
+    command: python manage.py runserver 0.0.0.0:8001
+    volumes:
+      - ./admin_service:/app
+    ports:
+      - 8001:8001
+    depends_on:
+      - admin-postgres
+    env_file:
+      - ./admin_service/.env
+    environment:
+      - KAFKA_BOOTSTRAP_SERVER=kafka:9092
+    networks:
+      - microservice-network
 
-  # add redis for admin's celerybeats (use a centralized redis)
-
-  admin-worker: # change to celerybeats
+  admin-worker:
     build:
       context: ./admin_service
       dockerfile: Dockerfile
     container_name: admin_app_worker
-    command: python manage.py listen_applications
+    command: python manage.py kafka_consumer
     volumes:
       - ./admin_service:/app
+    depends_on:
+      kafka:
+        condition: service_healthy
+    env_file:
+      - ./admin_service/.env
+    environment:
+      - KAFKA_BOOTSTRAP_SERVER=kafka:9092
+    networks:
+      - microservice-network
+  
+  admin-celery-worker:
+    build:
+      context: ./admin_service
+      dockerfile: Dockerfile
+    container_name: admin_app_celery_worker
+    command: celery -A core worker -l info
+    depends_on:
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    env_file:
+      - ./admin_service/.env
+    environment:
+      - REDIS_URL=redis://shared_redis:6379
+      - KAFKA_BOOTSTRAP_SERVER=kafka:9092
+    restart: always
+    profiles:
+      - celery
+    networks:
+      - microservice-network
+  
+  admin-celery-beats:
+    build:
+      context: ./admin_service
+      dockerfile: Dockerfile
+    container_name: admin_app_celery_beat
+    command: celery -A core beat -l info
     depends_on:
       redis:
         condition: service_healthy
     env_file:
       - ./admin_service/.env
+    environment:
+      - REDIS_URL=redis://shared_redis:6379
+      - KAFKA_BOOTSTRAP_SERVER=kafka:9092
+    restart: always
+    profiles:
+      - celery
+    networks:
+      - microservice-network
   
+  # =======================================================
+  # USER SERVICE MICROSTACK
+  # =======================================================
+  user-postgres:
+    image: postgres:16-alpine
+    container_name: user_postgres
+    restart: always
+    environment:
+      POSTGRES_DB: user_postgres_db
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: user_postgress_secure_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - user_postgres_data:/var/lib/postgresql/data
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    networks:
+      - microservice-network
+
   user-service:
     build:
       context: ./user_service
@@ -68,40 +249,164 @@ services:
     ports:
       - 8000:8000
     depends_on:
-      - redis
       - user-postgres
+      - opensearch-node
     env_file:
       - ./user_service/.env
     environment:
       - ADMIN_MICROSERVICE_URL=http://admin-service:8001
+      - OPENSEARCH_URL=http://opensearch-node:9200
+      - KAFKA_BOOTSTRAP_SERVER=kafka:9092
+    networks:
+      - microservice-network
 
-  user-postgres:
-    image: postgres:16-alpine
-    container_name: user_postgres
-    restart: always
-    environment:
-      POSTGRES_DB: user_postgres_db
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: admin_postgress_secure_password
-    ports:
-      - "5432:5432"
-    volumes:
-      - user_postgres_data:/var/lib/postgresql/data
-
-  user-worker: # change to celerybeats
+  user-worker:
     build:
       context: ./user_service
       dockerfile: Dockerfile
     container_name: user_app_worker
-    command: python manage.py listen_status_update
+    command: sh -c "python manage.py init_opensearch && python manage.py kafka_consumer"
     volumes:
       - ./user_service:/app
     depends_on:
       redis:
         condition: service_healthy
+      opensearch-node:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
     env_file:
       - ./user_service/.env
+    environment:
+      - OPENSEARCH_URL=http://opensearch-node:9200
+      - KAFKA_BOOTSTRAP_SERVER=kafka:9092
+    networks:
+      - microservice-network
+  
+  user-celery-worker:
+    build:
+      context: ./user_service
+      dockerfile: Dockerfile
+    container_name: user_app_celery_worker
+    command: celery -A core worker -l info
+    depends_on:
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    env_file:
+      - ./user_service/.env
+    environment:
+      - REDIS_URL=redis://shared_redis:6379
+      - OPENSEARCH_URL=http://opensearch-node:9200
+      - KAFKA_BOOTSTRAP_SERVER=kafka:9092
+    restart: always
+    profiles:
+      - celery
+    networks:
+      - microservice-network
+  
+  user-celery-beats:
+    build:
+      context: ./user_service
+      dockerfile: Dockerfile
+    container_name: user_app_celery_beats
+    command: celery -A core beat -l info
+    depends_on:
+      redis:
+        condition: service_healthy
+    env_file:
+      - ./user_service/.env
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - OPENSEARCH_URL=http://opensearch-node:9200
+      - KAFKA_BOOTSTRAP_SERVER=kafka:9092
+    restart: always
+    profiles:
+      - celery
+    networks:
+      - microservice-network
 
-volumes:
-  admin_postgres_data:
-  user_postgres_data:
+# =======================================================
+# AUDIT SERVICE MICROSTACK
+# =======================================================
+  audit-mongodb:
+    image: mongo:4.4
+    container_name: mongodb_container
+    restart: always
+    ports:
+      - "27017:27017" 
+    environment:
+      # old env variable name for mongo-4.4
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: securepassword123
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongo localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    networks:
+      - microservice-network
+  
+  audit-service:
+    build:
+      context: ./audit_service
+      dockerfile: Dockerfile
+    container_name: audit_app
+    command: python manage.py runserver 0.0.0.0:8002
+    volumes:
+      - ./audit_service:/app
+    ports:
+      - 8002:8002
+    depends_on:
+      audit-mongodb:
+        condition: service_healthy
+    env_file:
+      - ./audit_service/.env
+    environment:
+      - MONGODB_URL=mongodb://root:securepassword123@audit-mongodb:27017/
+      - KAFKA_BOOTSTRAP_SERVER=kafka:9092
+    networks:
+      - microservice-network
+    
+  audit-worker:
+    build:
+      context: ./audit_service
+      dockerfile: Dockerfile
+    container_name: audit_app_worker
+    command: python manage.py kafka_consumer
+    volumes:
+      - ./audit_service:/app
+    env_file:
+      - ./audit_service/.env
+    environment:
+      - MONGODB_URL=mongodb://root:securepassword123@audit-mongodb:27017/
+      - KAFKA_BOOTSTRAP_SERVER=kafka:9092
+    depends_on:
+      audit-mongodb:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - microservice-network
+  
+  mongo-express:
+    image: mongo-express:latest
+    container_name: mongo_express_container
+    restart: always
+    ports:
+      - "8081:8081"
+    environment:
+      - ME_CONFIG_MONGODB_URL=mongodb://root:securepassword123@audit-mongodb:27017/
+    depends_on:
+      audit-mongodb:
+        condition: service_healthy
+    networks:
+      - microservice-network

@@ -146,3 +146,9 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": 0.6,  # Run every 600 milliseconds
     },
 }
+
+# opensearch
+OPENSEARCH_URL = os.getenv("OPENSEARCH_URL")
+OPENSEARCH_USER = None if os.getenv("OPENSEARCH_USER") == "None" else os.getenv("OPENSEARCH_USER")
+OPENSEARCH_PASSWORD = None if os.getenv("OPENSEARCH_PASSWORD") == "None" else os.getenv("OPENSEARCH_PASSWORD")
+OPENSEARCH_USE_SSL = os.getenv("OPENSEARCH_USE_SSL") == "True"
