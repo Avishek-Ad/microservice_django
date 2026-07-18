@@ -7,8 +7,6 @@ networks:
 volumes:
   admin_postgres_data: {}
   user_postgres_data: {}
-  opensearch-data:
-    driver: local
   mongo_data: {}
 
 services:
@@ -67,155 +65,6 @@ services:
     networks:
       - microservice-network
 
-  opensearch-node:
-    image: opensearchproject/opensearch:2.14.0
-    container_name: opensearch-node
-    environment:
-      - cluster.name=opensearch-cluster
-      - node.name=opensearch-node
-      - discovery.type=single-node         
-      - bootstrap.memory_lock=true         
-      - "OPENSEARCH_JAVA_OPTS=-Xms256m -Xmx256m" # allow initial and max storage of 256mb
-      - DISABLE_SECURITY_PLUGIN=true
-      - DISABLE_INSTALL_DEMO_CONFIG=true  
-    ulimits:
-      memlock:
-        soft: -1
-        hard: -1
-      nofile:
-        soft: 65536
-        hard: 65536
-    volumes:
-      - opensearch-data:/usr/share/opensearch/data
-    ports:
-      - "9200:9200" # OpenSearch HTTP REST API port
-    networks:
-      - microservice-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9200/_cluster/health"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-    deploy:
-      resources:
-        limits:
-          memory: 1G
-  
-  opensearch-dashboards:
-    image: opensearchproject/opensearch-dashboards:2.14.0
-    container_name: opensearch-dashboards
-    ports:
-      - "5601:5601" # UI port accessible at http://localhost:5601
-    environment:
-      - OPENSEARCH_HOSTS=["http://opensearch-node:9200"]
-      - DISABLE_SECURITY_PLUGIN=true                     # Must match the node security setting
-    depends_on:
-      opensearch-node:
-        condition: service_healthy
-    networks:
-      - microservice-network
-  
-  # =======================================================
-  # ADMIN SERVICE MICROSTACK
-  # =======================================================
-  admin-postgres:
-    image: postgres:16-alpine
-    container_name: admin_postgres
-    restart: always
-    environment:
-      POSTGRES_DB: admin_postgres_db   
-      POSTGRES_USER: admin      
-      POSTGRES_PASSWORD: admin_postgress_secure_password
-    ports:
-      - "5433:5433"
-    volumes:
-      - admin_postgres_data:/var/lib/postgresql/data
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-    networks:
-      - microservice-network
-  
-  admin-service:
-    build:
-      context: ./admin_service
-      dockerfile: Dockerfile
-    container_name: admin_app
-    command: python manage.py runserver 0.0.0.0:8001
-    volumes:
-      - ./admin_service:/app
-    ports:
-      - 8001:8001
-    depends_on:
-      - admin-postgres
-    env_file:
-      - ./admin_service/.env
-    environment:
-      - KAFKA_BOOTSTRAP_SERVER=kafka:9092
-    networks:
-      - microservice-network
-
-  admin-worker:
-    build:
-      context: ./admin_service
-      dockerfile: Dockerfile
-    container_name: admin_app_worker
-    command: python manage.py kafka_consumer
-    volumes:
-      - ./admin_service:/app
-    depends_on:
-      kafka:
-        condition: service_healthy
-    env_file:
-      - ./admin_service/.env
-    environment:
-      - KAFKA_BOOTSTRAP_SERVER=kafka:9092
-    networks:
-      - microservice-network
-  
-  admin-celery-worker:
-    build:
-      context: ./admin_service
-      dockerfile: Dockerfile
-    container_name: admin_app_celery_worker
-    command: celery -A core worker -l info
-    depends_on:
-      redis:
-        condition: service_healthy
-      kafka:
-        condition: service_healthy
-    env_file:
-      - ./admin_service/.env
-    environment:
-      - REDIS_URL=redis://shared_redis:6379
-      - KAFKA_BOOTSTRAP_SERVER=kafka:9092
-    restart: always
-    profiles:
-      - celery
-    networks:
-      - microservice-network
-  
-  admin-celery-beats:
-    build:
-      context: ./admin_service
-      dockerfile: Dockerfile
-    container_name: admin_app_celery_beat
-    command: celery -A core beat -l info
-    depends_on:
-      redis:
-        condition: service_healthy
-    env_file:
-      - ./admin_service/.env
-    environment:
-      - REDIS_URL=redis://shared_redis:6379
-      - KAFKA_BOOTSTRAP_SERVER=kafka:9092
-    restart: always
-    profiles:
-      - celery
-    networks:
-      - microservice-network
-  
   # =======================================================
   # USER SERVICE MICROSTACK
   # =======================================================
@@ -250,12 +99,10 @@ services:
       - 8000:8000
     depends_on:
       - user-postgres
-      - opensearch-node
     env_file:
       - ./user_service/.env
     environment:
       - ADMIN_MICROSERVICE_URL=http://admin-service:8001
-      - OPENSEARCH_URL=http://opensearch-node:9200
       - KAFKA_BOOTSTRAP_SERVER=kafka:9092
     networks:
       - microservice-network
@@ -271,14 +118,11 @@ services:
     depends_on:
       redis:
         condition: service_healthy
-      opensearch-node:
-        condition: service_healthy
       kafka:
         condition: service_healthy
     env_file:
       - ./user_service/.env
     environment:
-      - OPENSEARCH_URL=http://opensearch-node:9200
       - KAFKA_BOOTSTRAP_SERVER=kafka:9092
     networks:
       - microservice-network
@@ -298,7 +142,6 @@ services:
       - ./user_service/.env
     environment:
       - REDIS_URL=redis://shared_redis:6379
-      - OPENSEARCH_URL=http://opensearch-node:9200
       - KAFKA_BOOTSTRAP_SERVER=kafka:9092
     restart: always
     profiles:
@@ -319,7 +162,6 @@ services:
       - ./user_service/.env
     environment:
       - REDIS_URL=redis://redis:6379
-      - OPENSEARCH_URL=http://opensearch-node:9200
       - KAFKA_BOOTSTRAP_SERVER=kafka:9092
     restart: always
     profiles:
