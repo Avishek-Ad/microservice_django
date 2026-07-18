@@ -53,8 +53,5 @@ def publishing_events_in_db_to_kafka():
             PublishedEvent.objects.bulk_update(successfully_published_ids, fields=['is_consumed'])
     
     return f"successfully Published {len(publishedEvents)} vents"
-
-
-# TODO: thought id doing this len(publishedEvents) executing another db operation or not
         
             

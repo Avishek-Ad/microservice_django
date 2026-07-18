@@ -85,7 +85,7 @@ class Command(BaseCommand):
         self.shutdown_requested = True
         
     def handle_application_created_event(self, payload):
-        extra_fields = payload['extra']
+        extra_fields = payload.get('extra', {})
         
         log_type = extra_fields.get('log_type')
         sender = extra_fields.get('sender')
@@ -93,4 +93,16 @@ class Command(BaseCommand):
         event_type = extra_fields.get('event_type')
         occured_at = extra_fields.get('occured_at')
         
-        # TODO: use nosql database 
+        remaining_payload = payload.copy()
+        remaining_payload.pop('extra', None)
+        
+        document_content = {
+            "log_type": log_type,
+            "sender": sender,
+            "receiver": receiver,
+            "event_type": event_type,
+            "payload": remaining_payload,
+            "occured_at": occured_at
+        }
+        
+        SystemLog.insert_one(document_content)
