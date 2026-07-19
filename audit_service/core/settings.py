@@ -30,6 +30,8 @@ DEBUG = os.getenv("DEBUG") == "1"
 
 ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS").split(",")
 
+CORS_ALLOW_ALL_ORIGINS = True
+
 
 # Application definition
 

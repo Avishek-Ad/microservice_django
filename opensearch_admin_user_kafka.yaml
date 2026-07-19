@@ -14,6 +14,22 @@ volumes:
 
 services:
   # =======================================================
+  # API GATEWAY (The Only Public Entry Point)
+  # =======================================================
+  api_gateway:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    container_name: api_gateway
+    ports:
+      - "8080:8080"
+    depends_on:
+      - user-service
+      - admin-service
+    networks:
+      - microservice-network
+  
+  # =======================================================
   # SHARED INFRASTRUCTURE (shared across all services)
   # =======================================================
   redis:
@@ -85,7 +101,7 @@ services:
       - node.name=opensearch-node
       - discovery.type=single-node         
       - bootstrap.memory_lock=true         
-      - "OPENSEARCH_JAVA_OPTS=-Xms256m -Xmx256m" # allow initial and max storage of 256mb
+      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m" # allow initial and max storage of 512mb
       - DISABLE_SECURITY_PLUGIN=true
       - DISABLE_INSTALL_DEMO_CONFIG=true  
     ulimits:
@@ -166,25 +182,25 @@ services:
     networks:
       - microservice-network
 
-  admin-worker:
-    build:
-      context: ./admin_service
-      dockerfile: Dockerfile
-    container_name: admin_app_worker
-    command: python manage.py kafka_consumer
-    volumes:
-      - ./admin_service:/app
-    depends_on:
-      admin-postgres:
-        condition: service_started
-      kafka:
-        condition: service_healthy
-    env_file:
-      - ./admin_service/.env
-    environment:
-      - KAFKA_BOOTSTRAP_SERVER=kafka:29092
-    networks:
-      - microservice-network
+  # admin-worker:
+  #   build:
+  #     context: ./admin_service
+  #     dockerfile: Dockerfile
+  #   container_name: admin_app_worker
+  #   command: python manage.py kafka_consumer
+  #   volumes:
+  #     - ./admin_service:/app
+  #   depends_on:
+  #     admin-postgres:
+  #       condition: service_started
+  #     kafka:
+  #       condition: service_healthy
+  #   env_file:
+  #     - ./admin_service/.env
+  #   environment:
+  #     - KAFKA_BOOTSTRAP_SERVER=kafka:29092
+  #   networks:
+  #     - microservice-network
   
   admin-celery-worker:
     build:
@@ -291,42 +307,42 @@ services:
     networks:
       - microservice-network
   
-  user-celery-worker:
-    build:
-      context: ./user_service
-      dockerfile: Dockerfile
-    container_name: user_app_celery_worker
-    command: celery -A core worker -l info
-    depends_on:
-      redis:
-        condition: service_healthy
-      kafka:
-        condition: service_healthy
-    env_file:
-      - ./user_service/.env
-    environment:
-      - REDIS_URL=redis://shared_redis:6379/1
-      - OPENSEARCH_URL=http://opensearch-node:9200
-      - KAFKA_BOOTSTRAP_SERVER=kafka:29092
-    restart: always
-    networks:
-      - microservice-network
+  # user-celery-worker:
+  #   build:
+  #     context: ./user_service
+  #     dockerfile: Dockerfile
+  #   container_name: user_app_celery_worker
+  #   command: celery -A core worker -l info
+  #   depends_on:
+  #     redis:
+  #       condition: service_healthy
+  #     kafka:
+  #       condition: service_healthy
+  #   env_file:
+  #     - ./user_service/.env
+  #   environment:
+  #     - REDIS_URL=redis://shared_redis:6379/1
+  #     - OPENSEARCH_URL=http://opensearch-node:9200
+  #     - KAFKA_BOOTSTRAP_SERVER=kafka:29092
+  #   restart: always
+  #   networks:
+  #     - microservice-network
   
-  user-celery-beats:
-    build:
-      context: ./user_service
-      dockerfile: Dockerfile
-    container_name: user_app_celery_beats
-    command: celery -A core beat -l info
-    depends_on:
-      redis:
-        condition: service_healthy
-    env_file:
-      - ./user_service/.env
-    environment:
-      - REDIS_URL=redis://shared_redis:6379/1
-      - OPENSEARCH_URL=http://opensearch-node:9200
-      - KAFKA_BOOTSTRAP_SERVER=kafka:29092
-    restart: always
-    networks:
-      - microservice-network
+  # user-celery-beats:
+  #   build:
+  #     context: ./user_service
+  #     dockerfile: Dockerfile
+  #   container_name: user_app_celery_beats
+  #   command: celery -A core beat -l info
+  #   depends_on:
+  #     redis:
+  #       condition: service_healthy
+  #   env_file:
+  #     - ./user_service/.env
+  #   environment:
+  #     - REDIS_URL=redis://shared_redis:6379/1
+  #     - OPENSEARCH_URL=http://opensearch-node:9200
+  #     - KAFKA_BOOTSTRAP_SERVER=kafka:29092
+  #   restart: always
+  #   networks:
+  #     - microservice-network

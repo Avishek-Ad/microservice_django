@@ -11,6 +11,22 @@ volumes:
 
 services:
   # =======================================================
+  # API GATEWAY (The Only Public Entry Point)
+  # =======================================================
+  api_gateway:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    container_name: api_gateway
+    ports:
+      - "8080:8080"
+    depends_on:
+      - user-service
+      - admin-service
+    networks:
+      - microservice-network
+  
+  # =======================================================
   # SHARED INFRASTRUCTURE (shared across all services)
   # =======================================================
   redis:

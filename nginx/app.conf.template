@@ -6,9 +6,9 @@ upstream admin_backend {
     server admin-service:8001;
 }
 
-upstream audit_backend {
-    server audit-service:8002;
-}
+# upstream audit_backend {
+#     server audit-service:8002;
+# }
 server {
     listen 8080;
     server_name localhost;
@@ -27,7 +27,7 @@ server {
         proxy_pass http://admin_backend/api/;
     }
 
-    location /api/v1/audit/ {
-        proxy_pass http://audit_backend/api/;
-    }
+    # location /api/v1/audit/ {
+    #     proxy_pass http://audit_backend/api/;
+    # }
 }

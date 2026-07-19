@@ -2,6 +2,7 @@ from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
 from .models import AdminApplicationReview, AdminApplicationReviewStatus, PublishedEvent, JobPosting
 from datetime import datetime, timezone
+import uuid
 
 @receiver(post_save, sender=AdminApplicationReview)
 def publish_application_status_to_user_service(sender, instance, created, **kwargs):
@@ -13,7 +14,9 @@ def publish_application_status_to_user_service(sender, instance, created, **kwar
         return
     
     if instance.review_status in [AdminApplicationReviewStatus.HIRED, AdminApplicationReviewStatus.REJECTED]:
+        unique_event_id = str(uuid.uuid4())
         payload = {
+            "event_id": unique_event_id,
             "event": "application_status_update",
             "user_application_id": instance.user_application_id,
             "new_status": instance.review_status
@@ -34,20 +37,22 @@ def publish_application_status_to_user_service(sender, instance, created, **kwar
         
 @receiver(post_save, sender=JobPosting)
 def send_job_for_indexing(sender, instance, created, **kwargs):
+    unique_event_id = str(uuid.uuid4())
     payload = {
-            "job_id": instance.id,
-            "title": instance.title,
-            "description": instance.description,
-            "department": instance.department,
-            "is_active": instance.is_active,
-            "created_at": instance.created_at.isoformat() if instance.created_at else None
-        }
+        "event_id": unique_event_id,
+        "job_id": instance.id,
+        "title": instance.title,
+        "description": instance.description,
+        "department": instance.department,
+        "is_active": instance.is_active,
+        "created_at": instance.created_at.isoformat() if instance.created_at else None
+    }
     extra = {
-            "log_type": "EVENT",
-            "sender": "admin_service",
-            "receiver": "user_service", # intended receiver
-            "occured_at": datetime.now(timezone.utc).isoformat()
-        }
+        "log_type": "EVENT",
+        "sender": "admin_service",
+        "receiver": "user_service", # intended receiver
+        "occured_at": datetime.now(timezone.utc).isoformat()
+    }
     
     if created:
         payload["event"] = "job_created"
@@ -64,7 +69,9 @@ def send_job_for_indexing(sender, instance, created, **kwargs):
 
 @receiver(post_delete, sender=JobPosting)
 def send_delete_event_for_job(sender, instance, **kwargs):
+    unique_event_id = str(uuid.uuid4())
     payload = {
+        "event_id": unique_event_id,
         "event": "job_deleted",
         "job_id": instance.id,
         }

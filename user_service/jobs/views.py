@@ -8,6 +8,7 @@ from django.db import transaction
 from datetime import datetime, timezone
 from opensearch_client import get_opensearch_client
 import requests
+import uuid
 
 class JobSearchAPIView(APIView):
     def get(self, request):
@@ -90,7 +91,9 @@ class ApplyJobAPIView(APIView):
                 }
             )
             application = JobApplication.objects.create(candidate=candidate, job_id=job_id)
+            unique_event_id = str(uuid.uuid4())
             payload = {
+                "event_id": unique_event_id,
                 "event": "application_created",
                 "user_application_id": application.id,
                 "candidate_name": candidate.full_name,

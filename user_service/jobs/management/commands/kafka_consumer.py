@@ -1,5 +1,5 @@
 from django.core.management.base import BaseCommand
-from jobs.models import JobApplication, JobApplicationStatus
+from jobs.models import JobApplication, JobApplicationStatus, ProcessedEvent
 from django.conf import settings
 from confluent_kafka import Consumer, KafkaError, KafkaException
 from opensearch_client import get_opensearch_client
@@ -68,6 +68,8 @@ class Command(BaseCommand):
             self.stdout.write(self.style.SUCCESS("Kafka consumer closed gracefully."))
             
     def process_message(self, msg, consumer):
+        created_tracking_event = False
+        event_id = None
         try:
             key = msg.key().decode('utf-8') if msg.key() else None
             value = msg.value().decode('utf-8') if msg.value() else None
@@ -76,7 +78,19 @@ class Command(BaseCommand):
             
             if value:
                 payload = json.loads(value)
-                 
+                
+                # ensure idempotenty
+                event_id = payload.get("event_id")
+        
+                _, created = ProcessedEvent.objects.get_or_create(event_id=event_id)
+                
+                if not created:
+                    self.stdout.write(self.style.WARNING(f"Event {event_id} already processed. Skipping safely."))
+                    consumer.commit(msg, asynchronous=False)
+                    return
+
+                created_tracking_event = True
+                                 
                 # call functions based on payload['event']
                 if payload['event'] == "application_status_update":
                     self.handle_application_status_update(payload)
@@ -90,12 +104,17 @@ class Command(BaseCommand):
             consumer.commit(msg, asynchronous=False)
         except Exception as e:
             self.stderr.write(self.style.ERROR(f"Error processing message: {e}"))
+            # roll back the tracking
+            if created_tracking_event and event_id:
+                self.stdout.write(self.style.WARNING(f"Rolling back tracking for event {event_id} to allow retries."))
+                ProcessedEvent.objects.filter(event_id=event_id).delete()
     
     def handle_shutdown(self, signum, frame):
         self.stdout.write(self.style.WARNING(f"\nSignal {signum} received. Initiating graceful shutdown..."))
         self.shutdown_requested = True
         
     def handle_application_status_update(self, payload):
+        
         user_application_id = payload['user_application_id']
         new_status = payload['new_status']
         
@@ -117,6 +136,7 @@ class Command(BaseCommand):
         os_client = get_opensearch_client()
         job_id = str(payload.get("job_id"))
         document_body={
+            "id": payload.get("job_id"),
             "title": payload.get("title"),
             "description": payload.get("description"),
             "department": payload.get("department"),

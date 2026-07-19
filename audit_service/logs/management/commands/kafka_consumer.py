@@ -75,7 +75,7 @@ class Command(BaseCommand):
                 payload = json.loads(value)
                  
                 # call functions based on payload['event']
-                if payload['event'] in ["application_created", "application_status_update"]:
+                if payload['event'] in ["application_created", "application_status_update", "job_created", "job_updated", "job_deleted"]:
                     self.handle_application_created_event(payload)
                 else:
                     self.stdout.write(self.style.WARNING(f"Unknown Event Arrived {payload['event']}"))
@@ -93,6 +93,11 @@ class Command(BaseCommand):
         self.shutdown_requested = True
         
     def handle_application_created_event(self, payload):
+        event_id = payload.get('event_id')
+        if not event_id:
+            self.stderr.write(self.style.ERROR("Message missing 'event_id'! Cannot process safely."))
+            return
+        
         extra_fields = payload.get('extra', {})
         
         log_type = extra_fields.get('log_type')
@@ -113,4 +118,9 @@ class Command(BaseCommand):
             "occured_at": occured_at
         }
         
-        SystemLog.insert_one(document_content)
+        SystemLog.update_one(
+            {"event_id": event_id},
+            {"$set": document_content},
+            upsert=True
+        )
+        self.stdout.write(self.style.SUCCESS(f"Successfully processed event {event_id}"))

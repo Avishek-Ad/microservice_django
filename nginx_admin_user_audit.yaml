@@ -57,10 +57,10 @@ services:
     command: python manage.py runserver 0.0.0.0:8001
     volumes:
       - ./admin_service:/app
-    # ports:
-    #   - 8001:8001
-    expose:
-      - "8001"
+    ports:
+      - 8001:8001
+    # expose:
+    #   - "8001"
     depends_on:
       - admin-postgres
     env_file:
@@ -98,10 +98,10 @@ services:
     command: python manage.py runserver 0.0.0.0:8000
     volumes:
       - ./user_service:/app
-    # ports:
-    #   - 8000:8000
-    expose:
-      - "8000"
+    ports:
+      - 8000:8000
+    # expose:
+    #   - "8000"
     depends_on:
       - user-postgres
     env_file:
@@ -146,10 +146,10 @@ services:
     command: python manage.py runserver 0.0.0.0:8002
     volumes:
       - ./audit_service:/app
-    # ports:
-    #   - 8002:8002
-    expose:
-      - "8002"
+    ports:
+      - 8002:8002
+    # expose:
+    #   - "8002"
     depends_on:
       audit-mongodb:
         condition: service_healthy

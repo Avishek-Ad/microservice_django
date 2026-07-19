@@ -1,7 +1,8 @@
 from django.core.management.base import BaseCommand
-from recruitment.models import JobPosting, AdminApplicationReview
+from recruitment.models import JobPosting, AdminApplicationReview, ProcessedEvent
 from django.conf import settings
 from confluent_kafka import Consumer, KafkaError, KafkaException
+from django.db import transaction
 import signal # for stopping loop without data loss
 import json
 
@@ -66,6 +67,8 @@ class Command(BaseCommand):
             self.stdout.write(self.style.SUCCESS("Kafka consumer closed gracefully."))
             
     def process_message(self, msg, consumer):
+        created_tracking_event = False
+        event_id = None
         try:
             key = msg.key().decode('utf-8') if msg.key() else None
             value = msg.value().decode('utf-8') if msg.value() else None
@@ -74,16 +77,31 @@ class Command(BaseCommand):
             
             if value:
                 payload = json.loads(value)
-                 
+                event_id = payload.get("event_id")
+
+                # idempotency check
+                _, created = ProcessedEvent.objects.get_or_create(event_id=event_id)
+                
+                if not created:
+                    self.stdout.write(self.style.WARNING(f"Event {event_id} already processed. Skipping safely."))
+                    consumer.commit(msg, asynchronous=False)
+                    return
+                
+                created_tracking_event = True
                 # call functions based on payload['event']
                 if payload['event'] == "application_created":
                     self.handle_application_created_event(payload)
                 else:
                     self.stdout.write(self.style.WARNING(f"Unknown Event Arrived {payload['event']}"))
+                    
             # very important for manual acknowledgement
             consumer.commit(msg, asynchronous=False)
         except Exception as e:
             self.stderr.write(self.style.ERROR(f"Error processing message: {e}"))
+            
+            if created_tracking_event and event_id:
+                self.stdout.write(self.style.WARNING(f"Rolling back tracking for event {event_id} to allow retries."))
+                ProcessedEvent.objects.filter(event_id=event_id).delete()
     
     def handle_shutdown(self, signum, frame):
         """
@@ -99,17 +117,21 @@ class Command(BaseCommand):
         job_id = payload['job_id']
         
         try:
-            job_posting = JobPosting.objects.get(id=job_id)
-                        
-            # creating review record
-            AdminApplicationReview.objects.create(
-                user_application_id=user_application_id,
-                candidate_name=name,
-                candidate_email=email,
-                job=job_posting
-            )
-                        
-            self.stdout.write(self.style.SUCCESS(f"[ALERT] Application {user_application_id} successfully mapped to Admin DB review dashboard!"))
-                        
+            with transaction.atomic():
+                job_posting = JobPosting.objects.get(id=job_id)
+                            
+                AdminApplicationReview.objects.create(
+                    user_application_id=user_application_id,
+                    candidate_name=name,
+                    candidate_email=email,
+                    job=job_posting
+                )
+
+            self.stdout.write(self.style.SUCCESS(f"Successfully created review record for application {user_application_id}"))
+                                    
         except JobPosting.DoesNotExist:
             self.stdout.write(self.style.WARNING(f"[ERROR] Received job posting for non existing job_id: {job_id}")) 
+        
+        except Exception as e:
+            self.stderr.write(self.style.ERROR(f"Database operation failed: {e}"))
+            raise e
