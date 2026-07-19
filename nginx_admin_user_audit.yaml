@@ -1,0 +1,163 @@
+version: '3.8'
+
+networks:
+  microservice-network:
+    driver: bridge
+  
+volumes:
+  admin_postgres_data: {}
+  user_postgres_data: {}
+  mongo_data: {}
+
+services:
+  # =======================================================
+  # API GATEWAY (The Only Public Entry Point)
+  # =======================================================
+  api_gateway:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    container_name: api_gateway
+    ports:
+      - "8080:8080"
+    depends_on:
+      - user-service
+      - admin-service
+      - audit-service
+    networks:
+      - microservice-network
+  
+  # =======================================================
+  # ADMIN SERVICE MICROSTACK
+  # =======================================================
+  admin-postgres:
+    image: postgres:16-alpine
+    container_name: admin_postgres
+    restart: always
+    environment:
+      POSTGRES_DB: admin_postgres_db   
+      POSTGRES_USER: admin      
+      POSTGRES_PASSWORD: admin_postgress_secure_password
+    ports:
+      - "5433:5432"
+    volumes:
+      - admin_postgres_data:/var/lib/postgresql/data
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    networks:
+      - microservice-network
+  
+  admin-service:
+    build:
+      context: ./admin_service
+      dockerfile: Dockerfile
+    container_name: admin_app
+    command: python manage.py runserver 0.0.0.0:8001
+    volumes:
+      - ./admin_service:/app
+    # ports:
+    #   - 8001:8001
+    expose:
+      - "8001"
+    depends_on:
+      - admin-postgres
+    env_file:
+      - ./admin_service/.env
+    networks:
+      - microservice-network
+
+  # =======================================================
+  # USER SERVICE MICROSTACK
+  # =======================================================
+  user-postgres:
+    image: postgres:16-alpine
+    container_name: user_postgres
+    restart: always
+    environment:
+      POSTGRES_DB: user_postgres_db
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: user_postgress_secure_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - user_postgres_data:/var/lib/postgresql/data
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    networks:
+      - microservice-network
+
+  user-service:
+    build:
+      context: ./user_service
+      dockerfile: Dockerfile
+    container_name: user_app
+    command: python manage.py runserver 0.0.0.0:8000
+    volumes:
+      - ./user_service:/app
+    # ports:
+    #   - 8000:8000
+    expose:
+      - "8000"
+    depends_on:
+      - user-postgres
+    env_file:
+      - ./user_service/.env
+    environment:
+      - ADMIN_MICROSERVICE_URL=http://admin-service:8001
+    networks:
+      - microservice-network
+  
+  # =======================================================
+  # AUDIT SERVICE MICROSTACK
+  # =======================================================
+  audit-mongodb:
+    image: mongo:4.4
+    container_name: mongodb_container
+    restart: always
+    ports:
+      - "27017:27017" 
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=root
+      - MONGO_INITDB_ROOT_PASSWORD=securepassword123
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongo localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    networks:
+      - microservice-network
+  
+  audit-service:
+    build:
+      context: ./audit_service
+      dockerfile: Dockerfile
+    container_name: audit_app
+    command: python manage.py runserver 0.0.0.0:8002
+    volumes:
+      - ./audit_service:/app
+    # ports:
+    #   - 8002:8002
+    expose:
+      - "8002"
+    depends_on:
+      audit-mongodb:
+        condition: service_healthy
+    env_file:
+      - ./audit_service/.env
+    environment:
+      - MONGODB_URL=mongodb://root:securepassword123@audit-mongodb:27017/
+    networks:
+      - microservice-network
+
+  

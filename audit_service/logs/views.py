@@ -10,9 +10,15 @@ class ListLogAPIView(APIView):
         
         offset = (page_number - 1) * page_size
         
-        results = SystemLog.find().skip(offset).limit(page_size)
+        coursor = SystemLog.find().skip(offset).limit(page_size)
         
-        return Response({'results': results}, status=status.HTTP_200_OK)
+        logs_list = []
+        for doc in coursor:
+            if '_id' in doc:
+                doc['_id'] = str(doc['_id'])
+            logs_list.append(doc)
+        
+        return Response({'results': logs_list}, status=status.HTTP_200_OK)
         
         
         

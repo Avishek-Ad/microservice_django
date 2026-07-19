@@ -26,7 +26,7 @@ class JobApplication(models.Model):
     submitted_at = models.DateTimeField(auto_now_add=True)
     
     def __str__(self):
-        return "Application {self.id} for job {self.job_id} by {self.candidate.email}"
+        return f"Application {self.id} for job {self.job_id} by {self.candidate.email}"
     
 class PublishedEvent(models.Model):
     channel = models.CharField(max_length=200)

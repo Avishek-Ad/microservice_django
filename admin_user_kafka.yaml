@@ -86,7 +86,7 @@ services:
       POSTGRES_USER: admin      
       POSTGRES_PASSWORD: admin_postgress_secure_password
     ports:
-      - "5433:5433"
+      - "5433:5432"
     volumes:
       - admin_postgres_data:/var/lib/postgresql/data
     deploy:
@@ -124,6 +124,8 @@ services:
     volumes:
       - ./admin_service:/app
     depends_on:
+      admin-postgres:
+        condition: service_started
       kafka:
         condition: service_healthy
     env_file:
@@ -147,11 +149,9 @@ services:
     env_file:
       - ./admin_service/.env
     environment:
-      - REDIS_URL=redis://shared_redis:6379
+      - REDIS_URL=redis://shared_redis:6379/0
       - KAFKA_BOOTSTRAP_SERVER=kafka:29092
     restart: always
-    profiles:
-      - celery
     networks:
       - microservice-network
   
@@ -167,11 +167,9 @@ services:
     env_file:
       - ./admin_service/.env
     environment:
-      - REDIS_URL=redis://shared_redis:6379
+      - REDIS_URL=redis://shared_redis:6379/0
       - KAFKA_BOOTSTRAP_SERVER=kafka:29092
     restart: always
-    profiles:
-      - celery
     networks:
       - microservice-network
   
@@ -222,12 +220,12 @@ services:
       context: ./user_service
       dockerfile: Dockerfile
     container_name: user_app_worker
-    command: sh -c "python manage.py init_opensearch && python manage.py kafka_consumer"
+    command: python manage.py kafka_consumer
     volumes:
       - ./user_service:/app
     depends_on:
-      redis:
-        condition: service_healthy
+      user-postgres:
+        condition: service_started
       kafka:
         condition: service_healthy
     env_file:
@@ -251,11 +249,9 @@ services:
     env_file:
       - ./user_service/.env
     environment:
-      - REDIS_URL=redis://shared_redis:6379
+      - REDIS_URL=redis://shared_redis:6379/1
       - KAFKA_BOOTSTRAP_SERVER=kafka:29092
     restart: always
-    profiles:
-      - celery
     networks:
       - microservice-network
   
@@ -271,10 +267,8 @@ services:
     env_file:
       - ./user_service/.env
     environment:
-      - REDIS_URL=redis://redis:6379
+      - REDIS_URL=redis://shared_redis:6379/1
       - KAFKA_BOOTSTRAP_SERVER=kafka:29092
     restart: always
-    profiles:
-      - celery
     networks:
       - microservice-network

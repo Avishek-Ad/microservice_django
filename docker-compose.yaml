@@ -10,6 +10,7 @@ volumes:
   opensearch-data:
     driver: local
   mongo_data: {}
+  kafka_data: {}
 
 services:
   # =======================================================
@@ -34,32 +35,41 @@ services:
       - microservice-network
   
   kafka:
-    image: bitnami/kafka:3.7-debian-12
-    container_name: shared_kafka
-    restart: always
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: kafka-local
     ports:
       - "9092:9092"
     environment:
-      # KRaft Settings (ZooKeeper-less)
-      - KAFKA_CFG_NODE_ID=1
-      - KAFKA_CFG_PROCESS_ROLES=controller,broker
-      - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
-      - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=1@kafka:9093
-      # Listeners configuration
-      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093
-      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092
-      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
-      # Allow topics to auto-create during development/production initialization
-      - KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE=true
+      # Enable KRaft mode (no ZooKeeper)
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: 'broker,controller'
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka:29093'
+      
+      # Configure listeners for both inside Docker and your local host machine
+      KAFKA_LISTENERS: 'PLAINTEXT://0.0.0.0:29092,CONTROLLER://0.0.0.0:29093,EXTERNAL://0.0.0.0:9092'
+      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://kafka:29092,EXTERNAL://localhost:9092'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT'
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+      
+      # Automatically create topics if they don't exist yet
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+      
+      # Required cluster ID for KRaft mode
+      CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
+      
+      # Speed up message handling for local development
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
     volumes:
-      - kafka_data:/bitnami/kafka
+      - kafka_data:/var/lib/kafka/data
     healthcheck:
       # Verifies Kafka is fully listening and accepting socket metadata handshakes
-      test: ["CMD-SHELL", "kafka-broker-api-versions.sh --bootstrap-server localhost:9092 || exit 1"]
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092 || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 10s
+      start_period: 20s
     deploy:
       resources:
         limits:
@@ -89,8 +99,6 @@ services:
       - opensearch-data:/usr/share/opensearch/data
     ports:
       - "9200:9200" # OpenSearch HTTP REST API port
-    networks:
-      - microservice-network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9200/_cluster/health"]
       interval: 5s
@@ -100,20 +108,22 @@ services:
       resources:
         limits:
           memory: 1G
-  
-  opensearch-dashboards:
-    image: opensearchproject/opensearch-dashboards:2.14.0
-    container_name: opensearch-dashboards
-    ports:
-      - "5601:5601" # UI port accessible at http://localhost:5601
-    environment:
-      - OPENSEARCH_HOSTS=["http://opensearch-node:9200"]
-      - DISABLE_SECURITY_PLUGIN=true                     # Must match the node security setting
-    depends_on:
-      opensearch-node:
-        condition: service_healthy
     networks:
       - microservice-network
+  
+  # opensearch-dashboards:
+  #   image: opensearchproject/opensearch-dashboards:2.14.0
+  #   container_name: opensearch-dashboards
+  #   ports:
+  #     - "5601:5601" # UI port accessible at http://localhost:5601
+  #   environment:
+  #     - OPENSEARCH_HOSTS=["http://opensearch-node:9200"]
+  #     - DISABLE_SECURITY_PLUGIN=true                     # Must match the node security setting
+  #   depends_on:
+  #     opensearch-node:
+  #       condition: service_healthy
+  #   networks:
+  #     - microservice-network
   
   # =======================================================
   # ADMIN SERVICE MICROSTACK
@@ -127,7 +137,7 @@ services:
       POSTGRES_USER: admin      
       POSTGRES_PASSWORD: admin_postgress_secure_password
     ports:
-      - "5433:5433"
+      - "5433:5432"
     volumes:
       - admin_postgres_data:/var/lib/postgresql/data
     deploy:
@@ -152,7 +162,7 @@ services:
     env_file:
       - ./admin_service/.env
     environment:
-      - KAFKA_BOOTSTRAP_SERVER=kafka:9092
+      - KAFKA_BOOTSTRAP_SERVER=kafka:29092
     networks:
       - microservice-network
 
@@ -165,12 +175,14 @@ services:
     volumes:
       - ./admin_service:/app
     depends_on:
+      admin-postgres:
+        condition: service_started
       kafka:
         condition: service_healthy
     env_file:
       - ./admin_service/.env
     environment:
-      - KAFKA_BOOTSTRAP_SERVER=kafka:9092
+      - KAFKA_BOOTSTRAP_SERVER=kafka:29092
     networks:
       - microservice-network
   
@@ -188,11 +200,9 @@ services:
     env_file:
       - ./admin_service/.env
     environment:
-      - REDIS_URL=redis://shared_redis:6379
-      - KAFKA_BOOTSTRAP_SERVER=kafka:9092
+      - REDIS_URL=redis://shared_redis:6379/0
+      - KAFKA_BOOTSTRAP_SERVER=kafka:29092
     restart: always
-    profiles:
-      - celery
     networks:
       - microservice-network
   
@@ -208,11 +218,9 @@ services:
     env_file:
       - ./admin_service/.env
     environment:
-      - REDIS_URL=redis://shared_redis:6379
-      - KAFKA_BOOTSTRAP_SERVER=kafka:9092
+      - REDIS_URL=redis://shared_redis:6379/0
+      - KAFKA_BOOTSTRAP_SERVER=kafka:29092
     restart: always
-    profiles:
-      - celery
     networks:
       - microservice-network
   
@@ -256,7 +264,7 @@ services:
     environment:
       - ADMIN_MICROSERVICE_URL=http://admin-service:8001
       - OPENSEARCH_URL=http://opensearch-node:9200
-      - KAFKA_BOOTSTRAP_SERVER=kafka:9092
+      - KAFKA_BOOTSTRAP_SERVER=kafka:29092
     networks:
       - microservice-network
 
@@ -269,8 +277,8 @@ services:
     volumes:
       - ./user_service:/app
     depends_on:
-      redis:
-        condition: service_healthy
+      user-postgres:
+        condition: service_started
       opensearch-node:
         condition: service_healthy
       kafka:
@@ -279,7 +287,7 @@ services:
       - ./user_service/.env
     environment:
       - OPENSEARCH_URL=http://opensearch-node:9200
-      - KAFKA_BOOTSTRAP_SERVER=kafka:9092
+      - KAFKA_BOOTSTRAP_SERVER=kafka:29092
     networks:
       - microservice-network
   
@@ -297,12 +305,10 @@ services:
     env_file:
       - ./user_service/.env
     environment:
-      - REDIS_URL=redis://shared_redis:6379
+      - REDIS_URL=redis://shared_redis:6379/1
       - OPENSEARCH_URL=http://opensearch-node:9200
-      - KAFKA_BOOTSTRAP_SERVER=kafka:9092
+      - KAFKA_BOOTSTRAP_SERVER=kafka:29092
     restart: always
-    profiles:
-      - celery
     networks:
       - microservice-network
   
@@ -318,12 +324,10 @@ services:
     env_file:
       - ./user_service/.env
     environment:
-      - REDIS_URL=redis://redis:6379
+      - REDIS_URL=redis://redis:6379/1
       - OPENSEARCH_URL=http://opensearch-node:9200
-      - KAFKA_BOOTSTRAP_SERVER=kafka:9092
+      - KAFKA_BOOTSTRAP_SERVER=kafka:29092
     restart: always
-    profiles:
-      - celery
     networks:
       - microservice-network
 
@@ -372,7 +376,7 @@ services:
       - ./audit_service/.env
     environment:
       - MONGODB_URL=mongodb://root:securepassword123@audit-mongodb:27017/
-      - KAFKA_BOOTSTRAP_SERVER=kafka:9092
+      - KAFKA_BOOTSTRAP_SERVER=kafka:29092
     networks:
       - microservice-network
     
@@ -388,25 +392,31 @@ services:
       - ./audit_service/.env
     environment:
       - MONGODB_URL=mongodb://root:securepassword123@audit-mongodb:27017/
-      - KAFKA_BOOTSTRAP_SERVER=kafka:9092
+      - KAFKA_BOOTSTRAP_SERVER=kafka:29092
     depends_on:
-      audit-mongodb:
-        condition: service_healthy
-      kafka:
-        condition: service_healthy
+      - audit-mongodb
+      - kafka
     networks:
       - microservice-network
   
-  mongo-express:
-    image: mongo-express:latest
-    container_name: mongo_express_container
-    restart: always
-    ports:
-      - "8081:8081"
-    environment:
-      - ME_CONFIG_MONGODB_URL=mongodb://root:securepassword123@audit-mongodb:27017/
-    depends_on:
-      audit-mongodb:
-        condition: service_healthy
-    networks:
-      - microservice-network
+  # mongo-express:
+  #   image: mongo-express:latest
+  #   container_name: mongo_express_container
+  #   restart: always
+  #   ports:
+  #     - "8081:8081"
+  #   environment:
+  #     - ME_CONFIG_MONGODB_URL=mongodb://root:securepassword123@audit-mongodb:27017/
+  #     - ME_CONFIG_MONGODB_SERVER=audit-mongodb
+  #     - ME_CONFIG_MONGODB_PORT=27017
+  #     - ME_CONFIG_MONGODB_ADMINUSERNAME=root
+  #     - ME_CONFIG_MONGODB_ADMINPASSWORD=securepassword123
+  #     - ME_CONFIG_MONGODB_ENABLE_ADMIN=true
+      
+  #     # This turns off the web pop-up screen login
+  #     - ME_CONFIG_BASICAUTH=false
+  #   depends_on:
+  #     audit-mongodb:
+  #       condition: service_healthy
+  #   networks:
+  #     - microservice-network

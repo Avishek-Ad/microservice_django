@@ -17,7 +17,7 @@ class Command(BaseCommand):
         
         conf = {
             'bootstrap.servers': settings.KAFKA_BOOTSTRAP_SERVER,
-            'group.id': 'django-service-consumer-group',
+            'group.id': 'admin-service-consumer-group',
             'auto.offset.reset': 'earliest',          
             'enable.auto.commit': False,    # Disable auto-commit for manual acknowledgment
             'session.timeout.ms': 45000,    # Detect worker crashes within 45s
@@ -80,7 +80,8 @@ class Command(BaseCommand):
                     self.handle_application_created_event(payload)
                 else:
                     self.stdout.write(self.style.WARNING(f"Unknown Event Arrived {payload['event']}"))
-                    
+            # very important for manual acknowledgement
+            consumer.commit(msg, asynchronous=False)
         except Exception as e:
             self.stderr.write(self.style.ERROR(f"Error processing message: {e}"))
     
@@ -111,4 +112,4 @@ class Command(BaseCommand):
             self.stdout.write(self.style.SUCCESS(f"[ALERT] Application {user_application_id} successfully mapped to Admin DB review dashboard!"))
                         
         except JobPosting.DoesNotExist:
-            self.stdout(self.style.WARNING(f"[ERROR] Received job posting for non existing job_id: {job_id}")) 
+            self.stdout.write(self.style.WARNING(f"[ERROR] Received job posting for non existing job_id: {job_id}")) 

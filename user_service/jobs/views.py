@@ -106,7 +106,7 @@ class ApplyJobAPIView(APIView):
                 "occured_at": datetime.now(timezone.utc).isoformat()
             }
             PublishedEvent.objects.create(
-                channel='admin_events',
+                channel='user_events',
                 payload=payload,
                 extra=extra
             )

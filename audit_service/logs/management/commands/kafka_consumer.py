@@ -17,7 +17,7 @@ class Command(BaseCommand):
         
         conf = {
             'bootstrap.servers': settings.KAFKA_BOOTSTRAP_SERVER,
-            'group.id': 'django-service-consumer-group',
+            'group.id': 'audit-service-consumer-group',
             'auto.offset.reset': 'earliest',          
             'enable.auto.commit': False,    # Disable auto-commit for manual acknowledgment
             'session.timeout.ms': 45000,    # Detect worker crashes within 45s
