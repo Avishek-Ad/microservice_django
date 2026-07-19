@@ -1,5 +1,6 @@
 from django.contrib import admin
 from .models import JobPosting, AdminApplicationReview, PublishedEvent
+from django.utils.html import format_html
 
 admin.site.register(PublishedEvent)
 
@@ -17,6 +18,8 @@ class AdminApplicationReviewAdmin(admin.ModelAdmin):
         'candidate_email', 
         'get_job_title', 
         'review_status', 
+        'resume_url',
+        'preview_resume',
         'logged_at'
     ]
     list_filter = ['review_status', 'logged_at']
@@ -25,3 +28,13 @@ class AdminApplicationReviewAdmin(admin.ModelAdmin):
     def get_job_title(self, obj):
         return obj.job.title
     get_job_title.short_description = 'Job Title' # changing header name
+    
+    def preview_resume(self, obj):
+        if not obj.resume_url:
+            return "No resume file uploaded."
+        
+        return format_html(
+            '<iframe src="{}" width="100%" height="400px" style="border: 1px solid #ccc; border-radius: 4px;"></iframe>',
+            obj.resume_url
+        )
+    preview_resume.short_description = "Resume Live Preview"

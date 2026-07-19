@@ -1,6 +1,63 @@
 version: '3.8'
 
+volumes:
+  admin_postgres_data: {}
+  user_postgres_data: {}
+  minio-data: {}
+
+networks:
+  microservice-network:
+    driver: bridge
+
 services:
+  api_gateway:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    container_name: api_gateway
+    ports:
+      - "8080:8080"
+    depends_on:
+      - user-service
+      - admin-service
+    networks:
+      - microservice-network
+  
+  minio:
+    image: minio/minio:latest
+    ports:
+     - "9000:9000" # minio api port
+     - "9001:9001" # minio web console port
+    volumes:
+      - minio-data:/data
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - microservice-network
+
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    volumes:
+      - ./init-minio.sh:/init-minio.sh
+    entrypoint: ["/bin/sh", "/init-minio.sh"]
+    environment:
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_USER: minioadmin
+      MINIO_PASSWORD: minioadmin123
+      BUCKET_NAME: django-media
+    networks:
+      - microservice-network
+
   user-postgres:
     image: postgres:16-alpine
     container_name: user_postgres
@@ -37,12 +94,47 @@ services:
     environment:
       - ADMIN_MICROSERVICE_URL=http://admin-service:8001
       - KAFKA_BOOTSTRAP_SERVER=kafka:9092
+      - MINIO_STORAGE_ENDPOINT=minio:9000
+      - MINIO_STORAGE_ACCESS_KEY=minioadmin
+      - MINIO_STORAGE_SECRET_KEY=minioadmin123
+      - MINIO_STORAGE_BUCKET_NAME=django-media
     networks:
       - microservice-network
 
-volumes:
-  user_postgres_data: {}
-
-networks:
-  microservice-network:
-    driver: bridge
+  admin-postgres:
+    image: postgres:16-alpine
+    container_name: admin_postgres
+    restart: always
+    environment:
+      POSTGRES_DB: admin_postgres_db   
+      POSTGRES_USER: admin      
+      POSTGRES_PASSWORD: admin_postgress_secure_password
+    ports:
+      - "5433:5432"
+    volumes:
+      - admin_postgres_data:/var/lib/postgresql/data
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    networks:
+      - microservice-network
+  
+  admin-service:
+    build:
+      context: ./admin_service
+      dockerfile: Dockerfile
+    container_name: admin_app
+    command: python manage.py runserver 0.0.0.0:8001
+    volumes:
+      - ./admin_service:/app
+    ports:
+      - 8001:8001
+    depends_on:
+      - admin-postgres
+    env_file:
+      - ./admin_service/.env
+    environment:
+      - KAFKA_BOOTSTRAP_SERVER=kafka:29092
+    networks:
+      - microservice-network

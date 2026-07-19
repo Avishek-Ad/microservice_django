@@ -115,6 +115,7 @@ class Command(BaseCommand):
         name = payload['candidate_name']
         email = payload['candidate_email']
         job_id = payload['job_id']
+        resume_url = payload['resume_url']
         
         try:
             with transaction.atomic():
@@ -124,7 +125,8 @@ class Command(BaseCommand):
                     user_application_id=user_application_id,
                     candidate_name=name,
                     candidate_email=email,
-                    job=job_posting
+                    job=job_posting,
+                    resume_url=resume_url
                 )
 
             self.stdout.write(self.style.SUCCESS(f"Successfully created review record for application {user_application_id}"))

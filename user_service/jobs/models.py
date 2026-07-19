@@ -1,5 +1,13 @@
 from django.db import models
 from django.db.models import JSONField
+from pathlib import Path
+from django.core.validators import FileExtensionValidator
+import uuid
+
+def user_directory_path(instance, filename):
+    file_path = Path(filename)
+    random_short_code = uuid.uuid4().hex[:8] # "f3b89a2c"
+    return f"{file_path.stem}-{random_short_code}{file_path.suffix}"
 
 class candidateProfile(models.Model):
     full_name = models.CharField(max_length=200)
@@ -20,9 +28,15 @@ class JobApplication(models.Model):
     job_id = models.IntegerField() # job id from admin services
     status = models.CharField(
         max_length=8, 
-        choices=JobApplicationStatus.choices, 
+        choices=JobApplicationStatus.choices,
         default=JobApplicationStatus.PENDING
     )
+    resume=models.FileField(
+        upload_to=user_directory_path,
+        validators=[FileExtensionValidator(allowed_extensions=['pdf'])], 
+        null=True, 
+        blank=True
+    ) # "documents/resume-f3b89a2c.pdf"
     submitted_at = models.DateTimeField(auto_now_add=True)
     
     def __str__(self):

@@ -9,3 +9,5 @@ django-celery-beat==2.9.0
 psycopg[binary]
 confluent-kafka==2.15.0
 opensearch-py==3.2.0
+django-storages==1.14.6
+boto3==1.43.51

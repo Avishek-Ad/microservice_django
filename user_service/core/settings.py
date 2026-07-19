@@ -152,3 +152,25 @@ OPENSEARCH_URL = os.getenv("OPENSEARCH_URL")
 OPENSEARCH_USER = None if os.getenv("OPENSEARCH_USER") == "None" else os.getenv("OPENSEARCH_USER")
 OPENSEARCH_PASSWORD = None if os.getenv("OPENSEARCH_PASSWORD") == "None" else os.getenv("OPENSEARCH_PASSWORD")
 OPENSEARCH_USE_SSL = os.getenv("OPENSEARCH_USE_SSL") == "True"
+
+
+STORAGES = {
+    "default": {
+        "BACKEND": "storages.backends.s3.S3Storage",
+    },
+    "staticfiles": {
+        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+    }
+}
+
+# minio related
+AWS_ACCESS_KEY_ID=os.getenv("MINIO_STORAGE_ACCESS_KEY", "minioadmin")
+AWS_SECRET_ACCESS_KEY=os.getenv("MINIO_STORAGE_SECRET_KEY", "minioadmin123")
+AWS_STORAGE_BUCKET_NAME=os.getenv("MINIO_STORAGE_BUCKET_NAME", "django-media")
+
+AWS_S3_URL_PROTOCOL = 'http:'
+AWS_S3_SECURE_URLS = False
+AWS_S3_ENDPOINT_URL=f"http://{os.environ.get('MINIO_STORAGE_ENDPOINT', 'localhost:9000')}"
+AWS_S3_CUSTOM_DOMAIN=f"localhost:8080/media/{AWS_STORAGE_BUCKET_NAME}" # api_gateway url build sothat it can be routed
+AWS_QUERYSTRING_AUTH=False # set true for expiring link
+AWS_S3_US_EAST_1_REGIONAL_ENDPOINT=False # minio is local to the hosted place

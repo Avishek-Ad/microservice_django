@@ -26,7 +26,8 @@ class AdminApplicationReview(models.Model):
         max_length=20, 
         choices=AdminApplicationReviewStatus.choices,
         default=AdminApplicationReviewStatus.NEW
-        )
+    )
+    resume_url = models.CharField(max_length=500, null=True, blank=True)
     logged_at = models.DateTimeField(auto_now_add=True)
     
     def __str__(self):

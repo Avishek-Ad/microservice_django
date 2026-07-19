@@ -77,8 +77,9 @@ class ApplyJobAPIView(APIView):
         full_name = request.data.get("full_name")
         job_id = request.data.get("job_id")
         skills = request.data.get("skills")
+        resume = request.FILES.get('resume')
         
-        if not email or not full_name or not job_id:
+        if not email or not full_name or not job_id or not resume:
             return Response({'error': "Missing mandatory fields"}, status=status.HTTP_400_BAD_REQUEST)
         
         with transaction.atomic():
@@ -90,7 +91,11 @@ class ApplyJobAPIView(APIView):
                     'skills': skills
                 }
             )
-            application = JobApplication.objects.create(candidate=candidate, job_id=job_id)
+            application = JobApplication.objects.create(
+                candidate=candidate, 
+                job_id=job_id,
+                resume=resume
+            )
             unique_event_id = str(uuid.uuid4())
             payload = {
                 "event_id": unique_event_id,
@@ -98,7 +103,8 @@ class ApplyJobAPIView(APIView):
                 "user_application_id": application.id,
                 "candidate_name": candidate.full_name,
                 "candidate_email": candidate.email,
-                "job_id": job_id
+                "job_id": job_id,
+                "resume_url": application.resume.url
             }
             # for logging
             extra = {

@@ -21,4 +21,5 @@ class JobApplicationSerializer(serializers.ModelSerializer):
             'candidate_name',
             'candidate_email',
             'review_status',
+            'resume_url'
         ]

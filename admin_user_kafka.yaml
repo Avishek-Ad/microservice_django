@@ -8,6 +8,7 @@ volumes:
   admin_postgres_data: {}
   user_postgres_data: {}
   kafka_data: {}
+  minio-data: {}
 
 services:
   # =======================================================
@@ -87,6 +88,25 @@ services:
       resources:
         limits:
           memory: 1G
+    networks:
+      - microservice-network
+
+  minio:
+    image: minio/minio:latest
+    ports:
+     - "9000:9000" # minio api port
+     - "9001:9001" # minio web console port
+    volumes:
+      - minio-data:/data
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
     networks:
       - microservice-network
 
@@ -192,6 +212,22 @@ services:
   # =======================================================
   # USER SERVICE MICROSTACK
   # =======================================================
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    volumes:
+      - ./init-minio.sh:/init-minio.sh
+    entrypoint: ["/bin/sh", "/init-minio.sh"]
+    environment:
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_USER: minioadmin
+      MINIO_PASSWORD: minioadmin123
+      BUCKET_NAME: django-media
+    networks:
+      - microservice-network
+
   user-postgres:
     image: postgres:16-alpine
     container_name: user_postgres
