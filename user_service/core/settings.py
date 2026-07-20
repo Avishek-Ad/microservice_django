@@ -176,8 +176,8 @@ AWS_ACCESS_KEY_ID=os.getenv("MINIO_STORAGE_ACCESS_KEY", "minioadmin")
 AWS_SECRET_ACCESS_KEY=os.getenv("MINIO_STORAGE_SECRET_KEY", "minioadmin123")
 AWS_STORAGE_BUCKET_NAME=os.getenv("MINIO_STORAGE_BUCKET_NAME", "django-media")
 
-AWS_S3_URL_PROTOCOL = 'http:'
-AWS_S3_SECURE_URLS = False
+AWS_S3_URL_PROTOCOL = os.getenv('AWS_S3_URL_PROTOCOL', 'http:')
+AWS_S3_SECURE_URLS = os.getenv('AWS_S3_SECURE_URLS') == "True"
 AWS_S3_ENDPOINT_URL=f"http://{os.environ.get('MINIO_STORAGE_ENDPOINT', 'localhost:9000')}"
 AWS_S3_CUSTOM_DOMAIN=f"localhost:8080/media/{AWS_STORAGE_BUCKET_NAME}" # api_gateway url build sothat it can be routed
 AWS_QUERYSTRING_AUTH=False # set true for expiring link
