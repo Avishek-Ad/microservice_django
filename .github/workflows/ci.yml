@@ -93,3 +93,22 @@ jobs:
               if: always()
               run: |
                 docker compose down --volumes --remove-orphans
+    
+    deploy:
+        needs: build-and-test
+        runs-on: ubuntu-latest
+        steps:
+            - name: Deploy and Migrate on Live Server
+              uses: appleboy/ssh-action@v1.0.3
+              with:
+                host: ${{ secrets.SERVER_HOST }}
+                username: ${{ secrets.SERVER_USER }}
+                key: ${{ secrets.SERVER_SSH_KEY }}
+                script: |
+                  cd /var/www/my-app
+                  git pull origin main
+                  docker compose up -d --build
+            
+                  # Run migrations automatically after containers start!
+                  docker compose exec -T user-service python manage.py migrate --noinput
+                  docker compose exec -T admin-service python manage.py migrate --noinput
