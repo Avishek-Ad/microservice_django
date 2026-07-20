@@ -113,7 +113,7 @@ jobs:
                   cd /home/ubuntu/microservice_django
                   git pull origin main
                   docker compose up -d --build
-            
+                  
                   # Run migrations automatically after containers start!
                   docker compose exec -T user-service python manage.py migrate --noinput
                   docker compose exec -T admin-service python manage.py migrate --noinput
