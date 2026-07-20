@@ -16,6 +16,7 @@ interface Application {
   candidate_name: string;
   candidate_email: string;
   review_status: string;
+  resume_url: null | string;
 }
 
 export default function AdminDashboard() {
@@ -57,6 +58,7 @@ export default function AdminDashboard() {
       const res = await fetch(`${BASE_URL}/${jobId}/applications/`);
       if (!res.ok) throw new Error("Could not retrieve candidate lists.");
       const data = await res.json();
+      console.log(data)
       setApplications(Array.isArray(data) ? data : data.results || []);
     } catch (err: any) {
       alert(err.message);
@@ -263,6 +265,34 @@ export default function AdminDashboard() {
 
                     {/* Operational Evaluation Buttons */}
                     <div className="mt-3 pt-3 border-t border-gray-100 flex gap-2 justify-end">
+                    <div className="resume-container">
+                      {app.resume_url ? (
+                        <div className="resume-preview-wrapper">
+                          {/* Inline PDF Preview */}
+                          <iframe
+                            src={`${app.resume_url}#toolbar=0`}
+                            title="Resume Preview"
+                            className="resume-iframe"
+                            width="100%"
+                            height="200px"
+                          />
+      
+                          {/* Clickable link to open in new tab */}
+                          <a 
+                            href={app.resume_url} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="resume-preview-link text-blue-800 hover:underline"
+                            style={{ display: 'block', marginTop: '10px' }}
+                          >
+                            Open Resume in New Tab
+                          </a>
+                        </div>
+                      ) : (
+                        <span className="no-resume-text">No resume available</span>
+                      )}
+                    </div>
+
                       <button
                         onClick={() => updateAppStatus(app.user_application_id, "rejected")}
                         disabled={app.review_status === "rejected"}

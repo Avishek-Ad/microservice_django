@@ -18,10 +18,17 @@ class AdminApplicationReviewAdmin(admin.ModelAdmin):
         'candidate_email', 
         'get_job_title', 
         'review_status', 
+        'logged_at'
+    ]
+    fields = [
+        'user_application_id', 
+        'candidate_email', 
+        'review_status', 
         'resume_url',
         'preview_resume',
         'logged_at'
     ]
+    readonly_fields = ["logged_at", "preview_resume"]
     list_filter = ['review_status', 'logged_at']
     search_fields = ['candidate_email', 'candidate_name']
     

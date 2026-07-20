@@ -54,6 +54,16 @@ services:
     ports:
       - "9092:9092"
     environment:
+      # --- ADD OR UPDATE THESE PROPERTIES ---
+      KAFKA_BROKER_MAX_NODE_TO_CONTROLLER_REQUEST_TIMEOUT_MS: 15000
+      KAFKA_REQUEST_TIMEOUT_MS: 15000
+      KAFKA_CONNECTION_MAX_IDLE_MS: 30000
+      # If using KRaft mode explicitly, ensure these are generous:
+      KAFKA_CONTROLLER_QUORUM_FETCH_TIMEOUT_MS: 15000
+      KAFKA_CONTROLLER_QUORUM_ELECTION_TIMEOUT_MS: 15000
+
+      KAFKA_OPTS: "-Xms512M -Xmx512M"
+      KAFKA_HEAP_OPTS: "-Xmx512m -Xms512m"
       # Enable KRaft mode (no ZooKeeper)
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: 'broker,controller'
@@ -176,7 +186,7 @@ services:
       context: ./admin_service
       dockerfile: Dockerfile
     container_name: admin_app_celery_worker
-    command: celery -A core worker -l info
+    command: celery -A core worker --loglevel=info --concurrency=1 --without-mingle --without-gossip -Ofair
     depends_on:
       redis:
         condition: service_healthy
@@ -264,6 +274,10 @@ services:
     environment:
       - ADMIN_MICROSERVICE_URL=http://admin-service:8001
       - KAFKA_BOOTSTRAP_SERVER=kafka:29092
+      - MINIO_STORAGE_ENDPOINT=minio:9000
+      - MINIO_STORAGE_ACCESS_KEY=minioadmin
+      - MINIO_STORAGE_SECRET_KEY=minioadmin123
+      - MINIO_STORAGE_BUCKET_NAME=django-media
     networks:
       - microservice-network
 
@@ -292,7 +306,7 @@ services:
       context: ./user_service
       dockerfile: Dockerfile
     container_name: user_app_celery_worker
-    command: celery -A core worker -l info
+    command: celery -A core worker --loglevel=info --concurrency=1 --without-mingle --without-gossip -Ofair
     depends_on:
       redis:
         condition: service_healthy
