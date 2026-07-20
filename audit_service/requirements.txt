@@ -4,3 +4,4 @@ django-cors-headers==4.9.0
 python-dotenv==1.2.2
 confluent-kafka==2.15.0
 pymongo==4.17.0
+gunicorn==26.0.0

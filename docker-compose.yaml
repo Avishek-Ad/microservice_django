@@ -22,11 +22,13 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        - NEXT_PUBLIC_BACKEND_URL=http://localhost:8080
+        - NEXT_PUBLIC_BACKEND_URL=${NEXT_PUBLIC_BACKEND_URL}
     container_name: frontend
     ports:
       - "3000:3000"
     restart: always
+    networks:
+      - microservice-network
 
   # =======================================================
   # API GATEWAY (The Only Public Entry Point)
@@ -42,6 +44,8 @@ services:
       - user-service
       - admin-service
       - audit-service
+      - minio
+    restart: always
     networks:
       - microservice-network
   
@@ -51,8 +55,8 @@ services:
   redis:
     image: redis:7-alpine
     container_name: shared_redis
-    ports:
-      - 6379:6379
+    expose:
+      - "6379"
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -69,8 +73,8 @@ services:
   kafka:
     image: confluentinc/cp-kafka:7.6.0
     container_name: kafka-local
-    ports:
-      - "9092:9092"
+    expose:
+      - "9092"
     environment:
       # --- ADD OR UPDATE THESE PROPERTIES ---
       KAFKA_BROKER_MAX_NODE_TO_CONTROLLER_REQUEST_TIMEOUT_MS: 15000
@@ -95,7 +99,7 @@ services:
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
       
       # Required cluster ID for KRaft mode
-      CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
+      CLUSTER_ID: ${KAFKA_CLUSTER_ID}
       
       # Speed up message handling for local development
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
@@ -137,8 +141,6 @@ services:
         hard: 65536
     volumes:
       - opensearch-data:/usr/share/opensearch/data
-    # ports:
-    #   - "9200:9200" # OpenSearch HTTP REST API port
     expose:
       - "9200"
     healthcheck:
@@ -152,26 +154,11 @@ services:
           memory: 1G
     networks:
       - microservice-network
-  
-  # opensearch-dashboards:
-  #   image: opensearchproject/opensearch-dashboards:2.14.0
-  #   container_name: opensearch-dashboards
-  #   ports:
-  #     - "5601:5601" # UI port accessible at http://localhost:5601
-  #   environment:
-  #     - OPENSEARCH_HOSTS=["http://opensearch-node:9200"]
-  #     - DISABLE_SECURITY_PLUGIN=true                     # Must match the node security setting
-  #   depends_on:
-  #     opensearch-node:
-  #       condition: service_healthy
-  #   networks:
-  #     - microservice-network
 
   minio:
     image: minio/minio:latest
-    ports:
-    #  - "9000:9000" # minio api port
-     - "9001:9001" # minio web console port
+    container_name: minio
+    restart: always
     expose:
       - "9000"
     volumes:
@@ -196,11 +183,9 @@ services:
     container_name: admin_postgres
     restart: always
     environment:
-      POSTGRES_DB: admin_postgres_db   
-      POSTGRES_USER: admin      
-      POSTGRES_PASSWORD: admin_postgress_secure_password
-    # ports:
-    #   - "5433:5432"
+      POSTGRES_DB: ${POSTGRES_DB}   
+      POSTGRES_USER: ${POSTGRES_USER}      
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     expose:
       - "5432"
     volumes:
@@ -217,11 +202,7 @@ services:
       context: ./admin_service
       dockerfile: Dockerfile
     container_name: admin_app
-    command: python manage.py runserver 0.0.0.0:8001
-    volumes:
-      - ./admin_service:/app
-    # ports:
-    #   - 8001:8001
+    command: gunicorn core.wsgi:application --bind 0.0.0.0:8001 --workers 1 --timeout 120
     expose:
       - "8001"
     depends_on:
@@ -239,8 +220,6 @@ services:
       dockerfile: Dockerfile
     container_name: admin_app_worker
     command: python manage.py kafka_consumer
-    volumes:
-      - ./admin_service:/app
     depends_on:
       admin-postgres:
         condition: service_started
@@ -258,7 +237,7 @@ services:
       context: ./admin_service
       dockerfile: Dockerfile
     container_name: admin_app_celery_worker
-    command: celery -A core worker --loglevel=info --concurrency=1 --without-mingle --without-gossip -Ofair
+    command: celery -A core worker --loglevel=info --concurrency=1
     depends_on:
       redis:
         condition: service_healthy
@@ -304,9 +283,9 @@ services:
     entrypoint: ["/bin/sh", "/init-minio.sh"]
     environment:
       MINIO_ENDPOINT: http://minio:9000
-      MINIO_USER: minioadmin
-      MINIO_PASSWORD: minioadmin123
-      BUCKET_NAME: django-media
+      MINIO_USER: ${MINIO_USER}
+      MINIO_PASSWORD: ${MINIO_PASSWORD}
+      BUCKET_NAME: ${BUCKET_NAME}
     networks:
       - microservice-network
 
@@ -315,11 +294,9 @@ services:
     container_name: user_postgres
     restart: always
     environment:
-      POSTGRES_DB: user_postgres_db
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: user_postgress_secure_password
-    # ports:
-    #   - "5432:5432"
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     expose:
       - "5432"
     volumes:
@@ -336,11 +313,7 @@ services:
       context: ./user_service
       dockerfile: Dockerfile
     container_name: user_app
-    command: python manage.py runserver 0.0.0.0:8000
-    volumes:
-      - ./user_service:/app
-    # ports:
-    #   - 8000:8000
+    command: gunicorn core.wsgi:application --bind 0.0.0.0:8000 --workers 1 --timeout 120
     expose:
       - "8000"
     depends_on:
@@ -353,9 +326,9 @@ services:
       - OPENSEARCH_URL=http://opensearch-node:9200
       - KAFKA_BOOTSTRAP_SERVER=kafka:29092
       - MINIO_STORAGE_ENDPOINT=minio:9000
-      - MINIO_STORAGE_ACCESS_KEY=minioadmin
-      - MINIO_STORAGE_SECRET_KEY=minioadmin123
-      - MINIO_STORAGE_BUCKET_NAME=django-media
+      - MINIO_STORAGE_ACCESS_KEY=${MINIO_STORAGE_ACCESS_KEY}
+      - MINIO_STORAGE_SECRET_KEY=${MINIO_STORAGE_SECRET_KEY}
+      - MINIO_STORAGE_BUCKET_NAME=${MINIO_STORAGE_BUCKET_NAME}
     networks:
       - microservice-network
 
@@ -365,8 +338,6 @@ services:
       dockerfile: Dockerfile
     container_name: user_app_worker
     command: sh -c "python manage.py init_opensearch && python manage.py kafka_consumer"
-    volumes:
-      - ./user_service:/app
     depends_on:
       user-postgres:
         condition: service_started
@@ -387,7 +358,7 @@ services:
       context: ./user_service
       dockerfile: Dockerfile
     container_name: user_app_celery_worker
-    command: celery -A core worker --loglevel=info --concurrency=1 --without-mingle --without-gossip -Ofair
+    command: celery -A core worker --loglevel=info --concurrency=1
     depends_on:
       redis:
         condition: service_healthy
@@ -433,8 +404,8 @@ services:
       - "27017:27017" 
     environment:
       # old env variable name for mongo-4.4
-      MONGO_INITDB_ROOT_USERNAME: root
-      MONGO_INITDB_ROOT_PASSWORD: securepassword123
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
     volumes:
       - mongo_data:/data/db
     healthcheck:
@@ -455,11 +426,7 @@ services:
       context: ./audit_service
       dockerfile: Dockerfile
     container_name: audit_app
-    command: python manage.py runserver 0.0.0.0:8002
-    volumes:
-      - ./audit_service:/app
-    # ports:
-    #   - 8002:8002
+    command: gunicorn core.wsgi:application --bind 0.0.0.0:8002 --workers 1 --timeout 120
     expose:
       - "8002"
     depends_on:
@@ -468,7 +435,7 @@ services:
     env_file:
       - ./audit_service/.env
     environment:
-      - MONGODB_URL=mongodb://root:securepassword123@audit-mongodb:27017/
+      - MONGODB_URL=mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@audit-mongodb:27017/
       - KAFKA_BOOTSTRAP_SERVER=kafka:29092
     networks:
       - microservice-network
@@ -479,37 +446,13 @@ services:
       dockerfile: Dockerfile
     container_name: audit_app_worker
     command: python manage.py kafka_consumer
-    volumes:
-      - ./audit_service:/app
     env_file:
       - ./audit_service/.env
     environment:
-      - MONGODB_URL=mongodb://root:securepassword123@audit-mongodb:27017/
+      - MONGODB_URL=mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@audit-mongodb:27017/
       - KAFKA_BOOTSTRAP_SERVER=kafka:29092
     depends_on:
       - audit-mongodb
       - kafka
     networks:
       - microservice-network
-  
-  # mongo-express:
-  #   image: mongo-express:latest
-  #   container_name: mongo_express_container
-  #   restart: always
-  #   ports:
-  #     - "8081:8081"
-  #   environment:
-  #     - ME_CONFIG_MONGODB_URL=mongodb://root:securepassword123@audit-mongodb:27017/
-  #     - ME_CONFIG_MONGODB_SERVER=audit-mongodb
-  #     - ME_CONFIG_MONGODB_PORT=27017
-  #     - ME_CONFIG_MONGODB_ADMINUSERNAME=root
-  #     - ME_CONFIG_MONGODB_ADMINPASSWORD=securepassword123
-  #     - ME_CONFIG_MONGODB_ENABLE_ADMIN=true
-      
-  #     # This turns off the web pop-up screen login
-  #     - ME_CONFIG_BASICAUTH=false
-  #   depends_on:
-  #     audit-mongodb:
-  #       condition: service_healthy
-  #   networks:
-  #     - microservice-network
