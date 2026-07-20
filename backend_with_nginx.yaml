@@ -58,6 +58,13 @@ services:
     ports:
       - "9092:9092"
     environment:
+      # --- ADD OR UPDATE THESE PROPERTIES ---
+      KAFKA_BROKER_MAX_NODE_TO_CONTROLLER_REQUEST_TIMEOUT_MS: 15000
+      KAFKA_REQUEST_TIMEOUT_MS: 15000
+      KAFKA_CONNECTION_MAX_IDLE_MS: 30000
+      # If using KRaft mode explicitly, ensure these are generous:
+      KAFKA_CONTROLLER_QUORUM_FETCH_TIMEOUT_MS: 15000
+      KAFKA_CONTROLLER_QUORUM_ELECTION_TIMEOUT_MS: 15000
       KAFKA_HEAP_OPTS: "-Xmx512m -Xms512m"
       # Enable KRaft mode (no ZooKeeper)
       KAFKA_NODE_ID: 1
@@ -132,19 +139,19 @@ services:
     networks:
       - microservice-network
   
-  opensearch-dashboards:
-    image: opensearchproject/opensearch-dashboards:2.14.0
-    container_name: opensearch-dashboards
-    ports:
-      - "5601:5601" # UI port accessible at http://localhost:5601
-    environment:
-      - OPENSEARCH_HOSTS=["http://opensearch-node:9200"]
-      - DISABLE_SECURITY_PLUGIN=true                     # Must match the node security setting
-    depends_on:
-      opensearch-node:
-        condition: service_healthy
-    networks:
-      - microservice-network
+  # opensearch-dashboards:
+  #   image: opensearchproject/opensearch-dashboards:2.14.0
+  #   container_name: opensearch-dashboards
+  #   ports:
+  #     - "5601:5601" # UI port accessible at http://localhost:5601
+  #   environment:
+  #     - OPENSEARCH_HOSTS=["http://opensearch-node:9200"]
+  #     - DISABLE_SECURITY_PLUGIN=true                     # Must match the node security setting
+  #   depends_on:
+  #     opensearch-node:
+  #       condition: service_healthy
+  #   networks:
+  #     - microservice-network
 
   minio:
     image: minio/minio:latest
@@ -187,7 +194,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512M
+          memory: 256M
     networks:
       - microservice-network
   
@@ -237,7 +244,7 @@ services:
       context: ./admin_service
       dockerfile: Dockerfile
     container_name: admin_app_celery_worker
-    command: celery -A core worker -l info
+    command: celery -A core worker --loglevel=info --concurrency=1 --without-mingle --without-gossip -Ofair
     depends_on:
       redis:
         condition: service_healthy
@@ -306,7 +313,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512M
+          memory: 256M
     networks:
       - microservice-network
 
@@ -366,7 +373,7 @@ services:
       context: ./user_service
       dockerfile: Dockerfile
     container_name: user_app_celery_worker
-    command: celery -A core worker -l info
+    command: celery -A core worker --loglevel=info --concurrency=1 --without-mingle --without-gossip -Ofair
     depends_on:
       redis:
         condition: service_healthy
@@ -425,7 +432,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512M
+          memory: 256M
     networks:
       - microservice-network
   
@@ -471,24 +478,24 @@ services:
     networks:
       - microservice-network
   
-  mongo-express:
-    image: mongo-express:latest
-    container_name: mongo_express_container
-    restart: always
-    ports:
-      - "8081:8081"
-    environment:
-      - ME_CONFIG_MONGODB_URL=mongodb://root:securepassword123@audit-mongodb:27017/
-      - ME_CONFIG_MONGODB_SERVER=audit-mongodb
-      - ME_CONFIG_MONGODB_PORT=27017
-      - ME_CONFIG_MONGODB_ADMINUSERNAME=root
-      - ME_CONFIG_MONGODB_ADMINPASSWORD=securepassword123
-      - ME_CONFIG_MONGODB_ENABLE_ADMIN=true
+  # mongo-express:
+  #   image: mongo-express:latest
+  #   container_name: mongo_express_container
+  #   restart: always
+  #   ports:
+  #     - "8081:8081"
+  #   environment:
+  #     - ME_CONFIG_MONGODB_URL=mongodb://root:securepassword123@audit-mongodb:27017/
+  #     - ME_CONFIG_MONGODB_SERVER=audit-mongodb
+  #     - ME_CONFIG_MONGODB_PORT=27017
+  #     - ME_CONFIG_MONGODB_ADMINUSERNAME=root
+  #     - ME_CONFIG_MONGODB_ADMINPASSWORD=securepassword123
+  #     - ME_CONFIG_MONGODB_ENABLE_ADMIN=true
       
-      # This turns off the web pop-up screen login
-      - ME_CONFIG_BASICAUTH=false
-    depends_on:
-      audit-mongodb:
-        condition: service_healthy
-    networks:
-      - microservice-network
+  #     # This turns off the web pop-up screen login
+  #     - ME_CONFIG_BASICAUTH=false
+  #   depends_on:
+  #     audit-mongodb:
+  #       condition: service_healthy
+  #   networks:
+  #     - microservice-network

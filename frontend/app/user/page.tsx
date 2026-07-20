@@ -36,7 +36,7 @@ export default function UserJobsPage() {
             setError(null);
             try {
                 // search/?q=${encodeURIComponent(searchQuery)}&department=${encodeURIComponent(department)}
-                const url = `http://localhost:8080/api/v1/user/jobs/`;
+                const url = `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/v1/user/jobs/search/?q=${encodeURIComponent(searchQuery)}&department=${encodeURIComponent(department)}`;
                 const response = await fetch(url);
                 if (!response.ok) {
                     throw new Error("Failed to load available positions");
@@ -60,42 +60,6 @@ export default function UserJobsPage() {
     }, [searchQuery, department]);
 
     // Handle Application Submit Form Actions
-    //   const handleApply = async (e: React.FormEvent) => {
-    //     e.preventDefault();
-    //     if (!selectedJob) return;
-
-    //     setSubmitting(true);
-    //     setSubmitMessage(null);
-
-    //     try {
-    //       const response = await fetch("http://localhost:8080/api/v1/user/apply/", {
-    //         method: "POST",
-    //         headers: {
-    //           "Content-Type": "application/json",
-    //         },
-    //         body: JSON.stringify({
-    //           email,
-    //           full_name: fullName,
-    //           job_id: selectedJob.id,
-    //           skills: skills, // String of comma-separated tags
-    //         }),
-    //       });
-    //       if (!response.ok) {
-    //         throw new Error("Failed to submit application. Please check input requirements.");
-    //       }
-
-    //       setSubmitMessage({ type: "success", text: "Application submitted successfully!" });
-    //       // Reset form variables
-    //       setEmail("");
-    //       setFullName("");
-    //       setSkills("");
-    //       setTimeout(() => setSelectedJob(null), 2000); // Auto-close modal after success window
-    //     } catch (err: any) {
-    //       setSubmitMessage({ type: "error", text: err.message || "Something went wrong." });
-    //     } finally {
-    //       setSubmitting(false);
-    //     }
-    //   };
     const handleApply = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!selectedJob) return;
@@ -125,7 +89,7 @@ export default function UserJobsPage() {
             // 3. Dispatch data. DO NOT set 'Content-Type' header here;
             // The browser automatically configures Multipart boundaries if FormData is specified.
             const response = await fetch(
-                "http://localhost:8080/api/v1/user/apply/",
+                `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/v1/user/apply/`,
                 {
                     method: "POST",
                     body: formData,

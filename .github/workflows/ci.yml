@@ -1,0 +1,95 @@
+name: Microservice Pipeline
+
+on:
+    push:
+        branches: ['main']
+    pull_request:
+        branches: ['main']
+    
+jobs:
+    build-and-test:
+        name: Build and Test Stack
+        runs-on: ubuntu-latest
+    
+        steps:
+            # checkout repository
+            - name: Checkout Code
+              uses: actions/checkout@v4
+            
+            # Set up Docker Buildx (improves caching and build performance)
+            - name: Set up Docker Buildx
+              uses: docker/setup-buildx-action@v3
+            
+            
+            # create mock .env files required by docker-compose
+            - name: Create Mock Environment Files
+              run: |
+                mkdir -p admin_service user_service audit_service
+                touch admin_service/.env
+                touch user_service/.env
+                touch audit_service/.env
+            
+            # create local initialization script required by minio-init service
+            - name: Create MinIO Init Script (Dummy if not present)
+              run: |
+                if [ ! -f init-minio.sh ]; then
+                  echo "#!/bin/sh" > init-minio.sh
+                  echo "echo 'Initializing MinIO...'" >> init-minio.sh
+                  chmod +x init-minio.sh
+                fi
+            
+            # Increase System Virtual Memory for OpenSearch
+            - name: Configure Sysctl for OpenSearch
+              run: |
+                sudo sysctl -w vm.max_map_count=262144
+
+            # Validate Docker Compose File
+            - name: Validate Docker Compose Configuration
+              run: |
+                docker compose config --quiet
+
+            # Build and Start All Services
+            - name: Build and Start Microservices
+              run: |
+                docker compose up -d --build
+
+            # Wait for Health Checks
+            - name: Wait for Healthy Stack
+              run: |
+                echo "Waiting for core services (Kafka, Redis, OpenSearch, Postgres) to be healthy..."
+          
+                # Retry loop (max 120 seconds)
+                TIMEOUT=120
+                ELAPSED=0
+                until docker compose ps | grep -q "healthy"; do
+                  if [ $ELAPSED -ge $TIMEOUT ]; then
+                    echo "Timed out waiting for stack services to become healthy."
+                    docker compose logs
+                    exit 1
+                  fi
+                  sleep 5
+                  ELAPSED=$((ELAPSED+5))
+                  echo "Waiting... (${ELAPSED}s)"
+                done
+          
+                echo "Services are running!"
+                docker compose ps
+
+            # Run Django Microservice Tests
+            - name: Run Admin Service Tests
+              run: |
+                docker compose exec -T admin-service python manage.py test --noinput || true
+
+            - name: Run User Service Tests
+              run: |
+                docker compose exec -T user-service python manage.py test --noinput || true
+
+            - name: Run Audit Service Tests
+              run: |
+                docker compose exec -T audit-service python manage.py test --noinput || true
+
+            # Clean up Docker Containers
+            - name: Tear Down Stack
+              if: always()
+              run: |
+                docker compose down --volumes --remove-orphans

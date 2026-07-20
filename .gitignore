@@ -4,3 +4,13 @@ venv/
 __pycache__
 TODO
 temp/
+admin_service.yaml
+admin_user_kafka.yaml
+audit_Admin_kafka.yaml
+audit_service.yaml
+audit_user_kafka.yaml
+backend_with_nginx.yaml
+frontend_backend_with_nginx.yaml
+nginx_admin_user_audit.yaml
+opensearch_admin_user_kafka.yaml
+user_Service.yaml

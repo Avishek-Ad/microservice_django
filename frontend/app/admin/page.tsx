@@ -35,7 +35,7 @@ export default function AdminDashboard() {
   const [description, setDescription] = useState("");
   const [isActive, setIsActive] = useState(true);
 
-  const BASE_URL = "http://localhost:8080/api/v1/admin/jobs";
+  const BASE_URL = `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/v1/admin/jobs`;
 
   // --- Fetch Operations ---
   const fetchJobs = async () => {

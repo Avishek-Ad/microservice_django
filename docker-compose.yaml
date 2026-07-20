@@ -11,8 +11,40 @@ volumes:
     driver: local
   mongo_data: {}
   kafka_data: {}
+  minio-data: {}
 
 services:
+  # =======================================================
+  # FRONTEND
+  # =======================================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_BACKEND_URL=http://localhost:8080
+    container_name: frontend
+    ports:
+      - "3000:3000"
+    restart: always
+
+  # =======================================================
+  # API GATEWAY (The Only Public Entry Point)
+  # =======================================================
+  api_gateway:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    container_name: api_gateway
+    ports:
+      - "8080:8080"
+    depends_on:
+      - user-service
+      - admin-service
+      - audit-service
+    networks:
+      - microservice-network
+  
   # =======================================================
   # SHARED INFRASTRUCTURE (shared across all services)
   # =======================================================
@@ -40,6 +72,14 @@ services:
     ports:
       - "9092:9092"
     environment:
+      # --- ADD OR UPDATE THESE PROPERTIES ---
+      KAFKA_BROKER_MAX_NODE_TO_CONTROLLER_REQUEST_TIMEOUT_MS: 15000
+      KAFKA_REQUEST_TIMEOUT_MS: 15000
+      KAFKA_CONNECTION_MAX_IDLE_MS: 30000
+      # If using KRaft mode explicitly, ensure these are generous:
+      KAFKA_CONTROLLER_QUORUM_FETCH_TIMEOUT_MS: 15000
+      KAFKA_CONTROLLER_QUORUM_ELECTION_TIMEOUT_MS: 15000
+      KAFKA_HEAP_OPTS: "-Xmx512m -Xms512m"
       # Enable KRaft mode (no ZooKeeper)
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: 'broker,controller'
@@ -65,7 +105,7 @@ services:
       - kafka_data:/var/lib/kafka/data
     healthcheck:
       # Verifies Kafka is fully listening and accepting socket metadata handshakes
-      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092 || exit 1"]
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:29092 || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -85,7 +125,7 @@ services:
       - node.name=opensearch-node
       - discovery.type=single-node         
       - bootstrap.memory_lock=true         
-      - "OPENSEARCH_JAVA_OPTS=-Xms256m -Xmx256m" # allow initial and max storage of 256mb
+      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m" # allow initial and max storage of 512mb
       - DISABLE_SECURITY_PLUGIN=true
       - DISABLE_INSTALL_DEMO_CONFIG=true  
     ulimits:
@@ -97,10 +137,12 @@ services:
         hard: 65536
     volumes:
       - opensearch-data:/usr/share/opensearch/data
-    ports:
-      - "9200:9200" # OpenSearch HTTP REST API port
+    # ports:
+    #   - "9200:9200" # OpenSearch HTTP REST API port
+    expose:
+      - "9200"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9200/_cluster/health"]
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:9200/_cluster/health"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -124,6 +166,27 @@ services:
   #       condition: service_healthy
   #   networks:
   #     - microservice-network
+
+  minio:
+    image: minio/minio:latest
+    ports:
+    #  - "9000:9000" # minio api port
+     - "9001:9001" # minio web console port
+    expose:
+      - "9000"
+    volumes:
+      - minio-data:/data
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - microservice-network
   
   # =======================================================
   # ADMIN SERVICE MICROSTACK
@@ -136,14 +199,16 @@ services:
       POSTGRES_DB: admin_postgres_db   
       POSTGRES_USER: admin      
       POSTGRES_PASSWORD: admin_postgress_secure_password
-    ports:
-      - "5433:5432"
+    # ports:
+    #   - "5433:5432"
+    expose:
+      - "5432"
     volumes:
       - admin_postgres_data:/var/lib/postgresql/data
     deploy:
       resources:
         limits:
-          memory: 512M
+          memory: 256M
     networks:
       - microservice-network
   
@@ -155,8 +220,10 @@ services:
     command: python manage.py runserver 0.0.0.0:8001
     volumes:
       - ./admin_service:/app
-    ports:
-      - 8001:8001
+    # ports:
+    #   - 8001:8001
+    expose:
+      - "8001"
     depends_on:
       - admin-postgres
     env_file:
@@ -191,7 +258,7 @@ services:
       context: ./admin_service
       dockerfile: Dockerfile
     container_name: admin_app_celery_worker
-    command: celery -A core worker -l info
+    command: celery -A core worker --loglevel=info --concurrency=1 --without-mingle --without-gossip -Ofair
     depends_on:
       redis:
         condition: service_healthy
@@ -227,6 +294,22 @@ services:
   # =======================================================
   # USER SERVICE MICROSTACK
   # =======================================================
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    volumes:
+      - ./init-minio.sh:/init-minio.sh
+    entrypoint: ["/bin/sh", "/init-minio.sh"]
+    environment:
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_USER: minioadmin
+      MINIO_PASSWORD: minioadmin123
+      BUCKET_NAME: django-media
+    networks:
+      - microservice-network
+
   user-postgres:
     image: postgres:16-alpine
     container_name: user_postgres
@@ -235,14 +318,16 @@ services:
       POSTGRES_DB: user_postgres_db
       POSTGRES_USER: user
       POSTGRES_PASSWORD: user_postgress_secure_password
-    ports:
-      - "5432:5432"
+    # ports:
+    #   - "5432:5432"
+    expose:
+      - "5432"
     volumes:
       - user_postgres_data:/var/lib/postgresql/data
     deploy:
       resources:
         limits:
-          memory: 512M
+          memory: 256M
     networks:
       - microservice-network
 
@@ -254,8 +339,10 @@ services:
     command: python manage.py runserver 0.0.0.0:8000
     volumes:
       - ./user_service:/app
-    ports:
-      - 8000:8000
+    # ports:
+    #   - 8000:8000
+    expose:
+      - "8000"
     depends_on:
       - user-postgres
       - opensearch-node
@@ -265,6 +352,10 @@ services:
       - ADMIN_MICROSERVICE_URL=http://admin-service:8001
       - OPENSEARCH_URL=http://opensearch-node:9200
       - KAFKA_BOOTSTRAP_SERVER=kafka:29092
+      - MINIO_STORAGE_ENDPOINT=minio:9000
+      - MINIO_STORAGE_ACCESS_KEY=minioadmin
+      - MINIO_STORAGE_SECRET_KEY=minioadmin123
+      - MINIO_STORAGE_BUCKET_NAME=django-media
     networks:
       - microservice-network
 
@@ -296,7 +387,7 @@ services:
       context: ./user_service
       dockerfile: Dockerfile
     container_name: user_app_celery_worker
-    command: celery -A core worker -l info
+    command: celery -A core worker --loglevel=info --concurrency=1 --without-mingle --without-gossip -Ofair
     depends_on:
       redis:
         condition: service_healthy
@@ -324,7 +415,7 @@ services:
     env_file:
       - ./user_service/.env
     environment:
-      - REDIS_URL=redis://redis:6379/1
+      - REDIS_URL=redis://shared_redis:6379/1
       - OPENSEARCH_URL=http://opensearch-node:9200
       - KAFKA_BOOTSTRAP_SERVER=kafka:29092
     restart: always
@@ -355,7 +446,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512M
+          memory: 256M
     networks:
       - microservice-network
   
@@ -367,8 +458,10 @@ services:
     command: python manage.py runserver 0.0.0.0:8002
     volumes:
       - ./audit_service:/app
-    ports:
-      - 8002:8002
+    # ports:
+    #   - 8002:8002
+    expose:
+      - "8002"
     depends_on:
       audit-mongodb:
         condition: service_healthy
