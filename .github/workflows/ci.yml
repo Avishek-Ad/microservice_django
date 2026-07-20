@@ -110,7 +110,7 @@ jobs:
                 username: ${{ secrets.SERVER_USER }}
                 key: ${{ secrets.SERVER_SSH_KEY }}
                 script: |
-                  cd /var/www/my-app
+                  cd /home/ubuntu/microservice_django
                   git pull origin main
                   docker compose up -d --build
             
