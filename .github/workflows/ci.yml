@@ -29,6 +29,11 @@ jobs:
                 touch user_service/.env
                 touch audit_service/.env
             
+            # access the dummy variables passed in the action->variables
+            - name: Recreate Dummy Env from GitHub Variables
+              run: |
+                echo "${{ vars.DUMMY_ENV_FILE }}" > .env.local
+            
             # create local initialization script required by minio-init service
             - name: Create MinIO Init Script (Dummy if not present)
               run: |
