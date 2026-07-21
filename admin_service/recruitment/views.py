@@ -1,13 +1,19 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, generics
+from drf_spectacular.utils import extend_schema, inline_serializer
 from .models import JobPosting, AdminApplicationReview, AdminApplicationReviewStatus
 from .serializers import JobPostingSerializer, JobApplicationSerializer
+from rest_framework import serializers
 
 class PublicAdminJobListAPIView(APIView):
     """
     For fetching active jobs by user_service
     """
+    @extend_schema(
+        summary="Fetch active job postings",
+        responses={200: JobPostingSerializer(many=True)}
+    )
     def get(self, response):
         jobs = JobPosting.objects.filter(is_active=True).order_by('-created_at')
         serializer = JobPostingSerializer(jobs, many=True)
@@ -27,6 +33,13 @@ class JobRetriveUpdateDestroyAPIView(
     lookup_field = "pk"
     
 class JobApplicationsListAPIView(APIView):
+    @extend_schema(
+        summary="List all applications for a specific job",
+        responses={
+            200: JobApplicationSerializer(many=True),
+            404: inline_serializer('JobNotFound', fields={'message': serializers.CharField()})
+        }
+    )
     def get(self, request, job_id):
         try:
             job_posting = JobPosting.objects.get(id=job_id)
@@ -37,6 +50,23 @@ class JobApplicationsListAPIView(APIView):
             return Response({"message": f"Job posting with id {job_id} not found"}, status=status.HTTP_404_NOT_FOUND)
         
 class JobApplicationsStatusChange(APIView):
+    @extend_schema(
+        summary="Update applicant review status",
+        request=inline_serializer(
+            name='JobStatusChangeRequest',
+            fields={
+                'new_status': serializers.ChoiceField(
+                    choices=['under_review', 'hired', 'rejected'],
+                    help_text="Target status for application review"
+                )
+            }
+        ),
+        responses={
+            200: inline_serializer('StatusChangeSuccess', fields={'message': serializers.CharField()}),
+            400: inline_serializer('StatusChangeBadRequest', fields={'message': serializers.CharField()}),
+            404: inline_serializer('StatusChangeNotFound', fields={'message': serializers.CharField()}),
+        }
+    )
     def post(self, request, job_id, user_app_id):
         new_status = request.data.get("new_status", '')
         try:

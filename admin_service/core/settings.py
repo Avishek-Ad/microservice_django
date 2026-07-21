@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     
     # Third party
     'rest_framework',
+    'drf_spectacular',
     'corsheaders',
     
     # Internal apps
@@ -150,4 +151,16 @@ CELERY_BROKER_TRANSPORT_OPTIONS = {
     'interval_start': 0,
     'interval_step': 0.5,
     'interval_max': 2,
+}
+
+# rest framework and api docs using swagger
+REST_FRAMEWORK = {
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+}
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Your Microservice API',
+    'DESCRIPTION': 'API documentation for microservices',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
 }

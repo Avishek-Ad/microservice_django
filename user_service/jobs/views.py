@@ -7,10 +7,54 @@ from .models import PublishedEvent
 from django.db import transaction
 from datetime import datetime, timezone
 from opensearch_client import get_opensearch_client
+from rest_framework.parsers import MultiPartParser, FormParser
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes, inline_serializer
+from rest_framework import serializers
 import requests
 import uuid
 
 class JobSearchAPIView(APIView):
+    @extend_schema(
+        summary="Search active job postings",
+        description="Queries OpenSearch for active job postings using full-text search and department filters.",
+        parameters=[
+            OpenApiParameter(
+                name="q",
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description="Search query string matched against title and description (supports fuzzy search)",
+                required=False
+            ),
+            OpenApiParameter(
+                name="department",
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description="Filter jobs by specific department name",
+                required=False
+            ),
+        ],
+        responses={
+            200: inline_serializer(
+                name="JobSearchResultResponse",
+                fields={
+                    "results": serializers.ListField(
+                        child=inline_serializer(
+                            name="OpenSearchJobHit",
+                            fields={
+                                "id": serializers.IntegerField(),
+                                "title": serializers.CharField(),
+                                "department": serializers.CharField(),
+                                "description": serializers.CharField(),
+                                "is_active": serializers.BooleanField(),
+                                "_score": serializers.FloatField(help_text="Search relevance score from OpenSearch"),
+                            }
+                        )
+                    )
+                }
+            ),
+            500: inline_serializer('OpenSearchError', fields={'error': serializers.CharField()}),
+        }
+    )
     def get(self, request):
         query_string = request.query_params.get('q', '')
         department = request.query_params.get('department', None)
@@ -59,6 +103,15 @@ class JobSearchAPIView(APIView):
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class JobListAPIView(APIView):
+    @extend_schema(
+        summary="Proxy list all posted jobs from Admin Microservice",
+        description="Fetches live posted jobs by calling the admin service internal REST endpoint.",
+        responses={
+            200: inline_serializer('AdminJobListResponse', fields={'results': serializers.ListField(child=serializers.DictField())}),
+            500: inline_serializer('AdminServiceError', fields={'error': serializers.CharField()}),
+            503: inline_serializer('AdminServiceUnreachable', fields={'error': serializers.CharField()}),
+        }
+    )
     def get(self, request):
         try:
             admin_url = f"{settings.ADMIN_MICROSERVICE_URL}/api/posted_jobs/"
@@ -72,6 +125,33 @@ class JobListAPIView(APIView):
         
     
 class ApplyJobAPIView(APIView):
+    parser_classes = [MultiPartParser, FormParser]
+
+    @extend_schema(
+        summary="Submit a job application with resume file",
+        description="Creates/updates a candidate profile, records job application, and emits an Outbox event for Kafka sync.",
+        request=inline_serializer(
+            name='JobApplicationRequest',
+            fields={
+                'email': serializers.EmailField(required=True),
+                'full_name': serializers.CharField(required=True),
+                'job_id': serializers.IntegerField(required=True),
+                'skills': serializers.CharField(required=False, allow_blank=True),
+                'resume': serializers.FileField(required=True, help_text="PDF/Docx resume file upload"),
+            }
+        ),
+        responses={
+            201: inline_serializer(
+                name='JobApplicationSuccess',
+                fields={
+                    'message': serializers.CharField(),
+                    'application': serializers.IntegerField(help_text="Created Application ID"),
+                    'status': serializers.CharField(),
+                }
+            ),
+            400: inline_serializer('JobApplicationBadRequest', fields={'error': serializers.CharField()}),
+        }
+    )
     def post(self, request):
         email = request.data.get("email")
         full_name = request.data.get("full_name")

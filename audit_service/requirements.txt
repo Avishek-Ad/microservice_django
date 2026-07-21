@@ -5,3 +5,4 @@ python-dotenv==1.2.2
 confluent-kafka==2.15.0
 pymongo==4.17.0
 gunicorn==26.0.0
+drf-spectacular==0.30.0

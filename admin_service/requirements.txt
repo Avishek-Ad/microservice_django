@@ -9,3 +9,4 @@ django-celery-beat==2.9.0
 psycopg[binary]
 confluent-kafka==2.15.0
 gunicorn==26.0.0
+drf-spectacular==0.30.0

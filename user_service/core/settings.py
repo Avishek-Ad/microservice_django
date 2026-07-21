@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     
     # Third party
     'rest_framework',
+    'drf_spectacular',
     'corsheaders',
     
     # Internal apps
@@ -182,3 +183,15 @@ AWS_S3_ENDPOINT_URL=f"http://{os.environ.get('MINIO_STORAGE_ENDPOINT', 'localhos
 AWS_S3_CUSTOM_DOMAIN=f"{os.getenv("MEDIA_URL_PREFIX")}/{AWS_STORAGE_BUCKET_NAME}" # api_gateway url build sothat it can be routed
 AWS_QUERYSTRING_AUTH=False # set true for expiring link
 AWS_S3_US_EAST_1_REGIONAL_ENDPOINT=False # minio is local to the hosted place
+
+# rest framework and api docs using swagger
+REST_FRAMEWORK = {
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+}
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Your Microservice API',
+    'DESCRIPTION': 'API documentation for microservices',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+}

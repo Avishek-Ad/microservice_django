@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     
     # Third party
     'rest_framework',
+    'drf_spectacular',
     'corsheaders',
     
     # internal
@@ -118,12 +119,20 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
+# mongodb url
+MONGODB_URL = os.getenv("MONGODB_URL")
+KAFKA_BOOTSTRAP_SERVER = os.getenv('KAFKA_BOOTSTRAP_SERVER', 'localhost:9092')
+
+# rest framework and api docs using swagger
 REST_FRAMEWORK = {
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
     'DEFAULT_AUTHENTICATION_CLASSES': [],    
     'UNAUTHENTICATED_USER': None,
 }
 
-
-# mongodb url
-MONGODB_URL = os.getenv("MONGODB_URL")
-KAFKA_BOOTSTRAP_SERVER = os.getenv('KAFKA_BOOTSTRAP_SERVER', 'localhost:9092')
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Your Microservice API',
+    'DESCRIPTION': 'API documentation for microservices',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+}

@@ -42,18 +42,54 @@ server {
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
     
+    # -------------------------------------------------------------
+    # USER SERVICE (Port 8000)
+    # -------------------------------------------------------------
     location /api/v1/user/ {
         proxy_pass http://user_backend/api/;
     }
 
+    location /api/user/docs/ {
+        proxy_pass http://user_backend/api/docs/;
+    }
+
+    location /api/user/schema/ {
+        proxy_pass http://user_backend/api/schema/;
+    }
+
+    # -------------------------------------------------------------
+    # ADMIN SERVICE (Port 8001)
+    # -------------------------------------------------------------
     location /api/v1/admin/ {
         proxy_pass http://admin_backend/api/;
     }
 
+    location /api/admin/docs/ {
+        proxy_pass http://admin_backend/api/docs/;
+    }
+
+    location /api/admin/schema/ {
+        proxy_pass http://admin_backend/api/schema/;
+    }
+
+    # -------------------------------------------------------------
+    # AUDIT SERVICE (Port 8002)
+    # -------------------------------------------------------------
     location /api/v1/audit/ {
         proxy_pass http://audit_backend/api/;
     }
 
+    location /api/audit/docs/ {
+        proxy_pass http://audit_backend/api/docs/;
+    }
+
+    location /api/audit/schema/ {
+        proxy_pass http://audit_backend/api/schema/;
+    }
+
+    # -------------------------------------------------------------
+    # OTHER ROUTES (Media & Frontend)
+    # -------------------------------------------------------------
     location /media/ {
         proxy_pass http://media_bucket/;
     }
