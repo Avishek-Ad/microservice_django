@@ -24,7 +24,6 @@ from drf_spectacular.views import (
 urlpatterns = [
     # path('admin/', admin.site.urls),
     path('api/', include('logs.urls')),
-    path('api/', include('recruitment.urls')),
     # 1. Downloadable Schema
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
     
