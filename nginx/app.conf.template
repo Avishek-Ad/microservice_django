@@ -20,7 +20,7 @@ upstream frontend_application {
 
 server {
     listen 80;
-    server_name localhost;
+    server_name ://abishek.gaurav-lamichhane.com.np;
 
     # global settings
     proxy_set_header Host $http_host;
