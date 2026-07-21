@@ -39,7 +39,7 @@ services:
       dockerfile: Dockerfile
     container_name: api_gateway
     ports:
-      - "8080:8080"
+      - "80:80"
     depends_on:
       - user-service
       - admin-service
@@ -330,6 +330,7 @@ services:
       - MINIO_STORAGE_ACCESS_KEY=${MINIO_STORAGE_ACCESS_KEY}
       - MINIO_STORAGE_SECRET_KEY=${MINIO_STORAGE_SECRET_KEY}
       - MINIO_STORAGE_BUCKET_NAME=${MINIO_STORAGE_BUCKET_NAME}
+      - MEDIA_URL_PREFIX=${MEDIA_URL_PREFIX}
     networks:
       - microservice-network
 

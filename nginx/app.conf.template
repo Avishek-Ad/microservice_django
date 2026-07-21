@@ -14,7 +14,7 @@ upstream media_bucket {
     server minio:9000;
 }
 server {
-    listen 8080;
+    listen 80;
     server_name localhost;
 
     # global settings
