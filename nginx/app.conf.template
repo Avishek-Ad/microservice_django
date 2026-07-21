@@ -13,6 +13,11 @@ upstream audit_backend {
 upstream media_bucket {
     server minio:9000;
 }
+
+upstream frontend_application {
+    server frontend:3000;
+}
+
 server {
     listen 80;
     server_name localhost;
@@ -37,5 +42,9 @@ server {
 
     location /media/ {
         proxy_pass http://media_bucket/;
+    }
+
+    location / {
+        proxy_pass http://frontend_application/;
     }
 }
