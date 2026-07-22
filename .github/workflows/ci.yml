@@ -30,18 +30,23 @@ jobs:
                 touch audit_service/.env
             
             # access the dummy variables passed in the action->variables
-            - name: Recreate Dummy Env from GitHub Variables
+            - name: Create .env from GitHub Secrets
               env:
-                DUMMY_ENV: ${{ vars.DUMMY_ENV_FILE }}
+                SECRETS_CONTEXT: ${{ toJson(secrets) }}
               run: |
-                # Write variables to .env silently
-                echo "$DUMMY_ENV" > .env
+                # Parse all GitHub Secrets into standard KEY=VALUE lines
+                # Filters out GitHub's auto-generated GITHUB_TOKEN runner secret
+                echo "$SECRETS_CONTEXT" | jq -r '
+                  to_entries[] 
+                  | select(.key != "GITHUB_TOKEN") 
+                  | "\(.key)=\(.value)"
+                ' > .env
                 
-                # Print a structured log confirmation
+                # Print structured log confirmation
                 echo "=========================================="
-                echo "✓ Created .env file for CI build pipeline"
+                echo "✓ Created .env file from GitHub Secrets"
                 echo "Path: $(pwd)/.env"
-                echo "Lines generated: $(wc -l < .env)"
+                echo "Secrets loaded: $(wc -l < .env)"
                 echo "=========================================="
             
             # create local initialization script required by minio-init service
