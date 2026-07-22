@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import useWebsocket from "../hooks/useWebsocket";
 
 interface Job {
     id: number;
@@ -10,6 +11,12 @@ interface Job {
     description: string;
 }
 
+interface NotificationItem {
+    id: string;
+    message: string;
+    timestamp: string;
+}
+
 export default function UserJobsPage() {
     // Search and Filter States
     const [searchQuery, setSearchQuery] = useState<string>("");
@@ -17,6 +24,9 @@ export default function UserJobsPage() {
     const [jobs, setJobs] = useState<Job[]>([]);
     const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
+
+    // Live Notification Queue State (Max 4 items)
+    const [notifications, setNotifications] = useState<NotificationItem[]>([]);
 
     // Application Modal States
     const [selectedJob, setSelectedJob] = useState<Job | null>(null);
@@ -28,6 +38,36 @@ export default function UserJobsPage() {
         type: "success" | "error";
         text: string;
     } | null>(null);
+
+    // WebSocket Message Handler with FIFO Ring-Buffer Behavior
+    const handleMessage = useCallback((data: any) => {
+        console.log(data)
+        if (data.type === "NOTIFICATION" && data.message) {
+            const newNotice: NotificationItem = {
+                id: `${Date.now()}-${Math.random().toString(36).substring(2, 5)}`,
+                message: data.message,
+                timestamp: new Date().toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    second: "2-digit",
+                }),
+            };
+
+            setNotifications((prevNotices) => {
+                // Prepend new item (newest first)
+                const updated = [newNotice, ...prevNotices];
+                // Cap strictly at the latest 4 items
+                return updated.slice(0, 4);
+            });
+        }
+    }, []);
+
+    const { sendEvent } = useWebsocket(`ws/event/`, handleMessage);
+
+    // Dismiss an individual notification manually
+    const dismissNotification = (id: string) => {
+        setNotifications((prev) => prev.filter((n) => n.id !== id));
+    };
 
     // Fetch jobs dynamically based on query and department changes
     useEffect(() => {
@@ -126,6 +166,41 @@ export default function UserJobsPage() {
 
     return (
         <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
+
+            {/* Live Notifications Container - Top Right / Floating */}
+{notifications.length > 0 && (
+    <div className="fixed top-4 right-4 z-50 flex flex-col gap-2.5 max-w-sm w-full pointer-events-none">
+        {notifications.map((notice) => (
+            <div
+                key={notice.id}
+                className="pointer-events-auto bg-white/95 backdrop-blur-md border border-gray-200/90 p-3.5 rounded-xl shadow-md flex items-start justify-between gap-3 text-xs transition-all animate-in slide-in-from-top duration-200"
+            >
+                <div className="flex gap-2.5 items-start">
+                    <span className="relative flex h-2 w-2 mt-1 shrink-0">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-600"></span>
+                    </span>
+                    <div>
+                        <p className="font-semibold text-gray-800 leading-snug">
+                            {notice.message}
+                        </p>
+                        <span className="text-[10px] text-gray-400 font-mono mt-1 block">
+                            {notice.timestamp}
+                        </span>
+                    </div>
+                </div>
+                <button
+                    onClick={() => dismissNotification(notice.id)}
+                    className="text-gray-400 hover:text-gray-700 transition font-bold text-sm px-1 -mt-0.5 leading-none"
+                    title="Dismiss notification"
+                >
+                    ✕
+                </button>
+            </div>
+        ))}
+    </div>
+)}
+
             <div className="max-w-5xl mx-auto">
                 {/* Header section matches log panel design */}
                 <header className="mb-8">

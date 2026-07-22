@@ -115,7 +115,7 @@ services:
       - kafka_data:/var/lib/kafka/data
     healthcheck:
       # Verifies Kafka is fully listening and accepting socket metadata handshakes
-      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:29092 || exit 1"]
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server kafka:29092 || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -320,15 +320,18 @@ services:
       context: ./user_service
       dockerfile: Dockerfile
     container_name: user_app
-    command: gunicorn core.wsgi:application --bind 0.0.0.0:8000 --workers 1 --timeout 120
+    command: daphne -b 0.0.0.0 -p 8000 core.asgi:application
     expose:
       - "8000"
     depends_on:
-      - user-postgres
-      - opensearch-node
+      redis:
+        condition: service_healthy   # Wait until redis-cli ping succeeds
+      user-postgres:
+        condition: service_started
     env_file:
       - ./user_service/.env
     environment:
+      - REDIS_URL=redis://shared_redis:6379/2
       - ADMIN_MICROSERVICE_URL=http://admin-service:8001
       - OPENSEARCH_URL=http://opensearch-node:9200
       - KAFKA_BOOTSTRAP_SERVER=kafka:29092
@@ -356,6 +359,7 @@ services:
     env_file:
       - ./user_service/.env
     environment:
+      - REDIS_URL=redis://shared_redis:6379/2
       - OPENSEARCH_URL=http://opensearch-node:9200
       - KAFKA_BOOTSTRAP_SERVER=kafka:29092
     networks:

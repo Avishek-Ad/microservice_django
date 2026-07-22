@@ -262,16 +262,20 @@ services:
       context: ./user_service
       dockerfile: Dockerfile
     container_name: user_app
-    command: python manage.py runserver 0.0.0.0:8000
+    command: daphne -b 0.0.0.0 -p 8000 core.asgi:application
     volumes:
       - ./user_service:/app
     ports:
       - 8000:8000
     depends_on:
-      - user-postgres
+      redis:
+        condition: service_healthy   # Wait until redis-cli ping succeeds
+      user-postgres:
+        condition: service_started
     env_file:
       - ./user_service/.env
     environment:
+      - REDIS_URL=redis://shared_redis:6379/2
       - ADMIN_MICROSERVICE_URL=http://admin-service:8001
       - KAFKA_BOOTSTRAP_SERVER=kafka:29092
       - MINIO_STORAGE_ENDPOINT=minio:9000
@@ -297,6 +301,7 @@ services:
     env_file:
       - ./user_service/.env
     environment:
+      - REDIS_URL=redis://shared_redis:6379/2
       - KAFKA_BOOTSTRAP_SERVER=kafka:29092
     networks:
       - microservice-network

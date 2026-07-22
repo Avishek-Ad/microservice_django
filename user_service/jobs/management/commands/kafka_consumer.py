@@ -3,6 +3,8 @@ from jobs.models import JobApplication, JobApplicationStatus, ProcessedEvent
 from django.conf import settings
 from confluent_kafka import Consumer, KafkaError, KafkaException
 from opensearch_client import get_opensearch_client
+from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
 import signal # for stopping loop without data loss
 import json
 
@@ -125,6 +127,23 @@ class Command(BaseCommand):
                 job_application.status = JobApplicationStatus.APPROVED
             elif new_status == "rejected":
                 job_application.status = JobApplicationStatus.REJECTED
+                
+            channel_layer = get_channel_layer()
+            if channel_layer is None:
+                self.stderr.write(self.style.ERROR("Channel layer is not configured! Check CHANNEL_LAYERS in settings.py."))
+            else:
+                room_group_name = "user_notification_room"
+                self.stdout.write(f"Broadcasting to group '{room_group_name}'...")
+                
+                async_to_sync(channel_layer.group_send)(
+                    room_group_name,
+                    {
+                        "type": "send_notification",
+                        "message": f"Admin {new_status.title()} {job_application.candidate.full_name} for job with id {job_application.job_id}",
+                    }
+                )
+                self.stdout.write(self.style.SUCCESS("Successfully sent WebSocket event!"))
+            
             
             job_application.save()    
             

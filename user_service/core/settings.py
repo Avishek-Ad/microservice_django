@@ -35,6 +35,7 @@ CORS_ALLOW_ALL_ORIGINS = True
 # Application definition
 
 INSTALLED_APPS = [
+    'daphne',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -79,7 +80,26 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'core.wsgi.application'
+# WSGI_APPLICATION = 'core.wsgi.application'
+ASGI_APPLICATION = 'core.asgi.application'
+
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [
+                {
+                    "address": os.getenv("REDIS_URL", "redis://127.0.0.1:6379/0"),
+                    "socket_timeout": 15,          # was 5 — must be > brpop_timeout (5s)
+                    "socket_connect_timeout": 5,   # fine as-is, unrelated to this bug
+                    "health_check_interval": 10,   # fine as-is
+                }
+            ],
+            "capacity": 1500,
+            "expiry": 10,
+        },
+    },
+}
 
 
 # Database
