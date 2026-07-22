@@ -46,6 +46,7 @@ ENV NODE_ENV=production
 
 ARG NEXT_PUBLIC_BACKEND_URL
 ENV NEXT_PUBLIC_BACKEND_URL=$NEXT_PUBLIC_BACKEND_URL
+ENV NEXT_PUBLIC_BACKEND_WEBSOCKET_URL=$NEXT_PUBLIC_BACKEND_WEBSOCKET_URL
 
 # Next.js collects completely anonymous telemetry data about general usage.
 # Learn more here: https://nextjs.org/telemetry
