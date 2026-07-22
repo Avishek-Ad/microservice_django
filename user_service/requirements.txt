@@ -13,3 +13,4 @@ django-storages==1.14.6
 boto3==1.43.51
 gunicorn==26.0.0
 drf-spectacular==0.30.0
+channels[daphne]

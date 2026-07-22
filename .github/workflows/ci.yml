@@ -34,19 +34,18 @@ jobs:
               env:
                 SECRETS_CONTEXT: ${{ toJson(secrets) }}
               run: |
-                # Parse all GitHub Secrets into standard KEY=VALUE lines
-                # Filters out GitHub's auto-generated GITHUB_TOKEN runner secret
+                # Parse secrets safely into .env format with quoted values
                 echo "$SECRETS_CONTEXT" | jq -r '
                   to_entries[] 
                   | select(.key != "GITHUB_TOKEN") 
-                  | "\(.key)=\(.value)"
+                  | "\(.key)=\"\(.value | gsub("\""; "\\\"") | gsub("\n"; "\\n"))\""
                 ' > .env
                 
-                # Print structured log confirmation
+                # Print structured log confirmation (without leaking secrets)
                 echo "=========================================="
                 echo "✓ Created .env file from GitHub Secrets"
                 echo "Path: $(pwd)/.env"
-                echo "Secrets loaded: $(wc -l < .env)"
+                echo "Total lines generated: $(wc -l < .env)"
                 echo "=========================================="
             
             # create local initialization script required by minio-init service
