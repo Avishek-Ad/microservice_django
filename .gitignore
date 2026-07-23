@@ -15,3 +15,4 @@ frontend_backend_with_nginx.yaml
 nginx_admin_user_audit.yaml
 opensearch_admin_user_kafka.yaml
 user_Service.yaml
+full_with_interfaces.yaml
