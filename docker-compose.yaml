@@ -138,8 +138,8 @@ services:
   kafka-ui:
     image: kafbat/kafka-ui:latest
     container_name: kafka-ui
-    ports:
-      - "8080:8080"
+    expose:
+      - "8080"
     depends_on:
       kafka:
         condition: service_healthy
@@ -190,8 +190,8 @@ services:
   opensearch-dashboards:
     image: opensearchproject/opensearch-dashboards:2.14.0
     container_name: opensearch-dashboards
-    ports:
-      - "5601:5601" # UI port accessible at http://localhost:5601
+    expose:
+      - "5601" # UI port accessible at http://localhost:5601
     environment:
       - OPENSEARCH_HOSTS=["http://opensearch-node:9200"]
       - DISABLE_SECURITY_PLUGIN=true                     # Must match the node security setting
@@ -206,9 +206,9 @@ services:
     image: minio/minio:latest
     container_name: minio
     restart: always
-    ports:
-      - "9000:9000"
-      - "9001:9001"
+    expose:
+      - "9000"
+      - "9001"
     volumes:
       - minio-data:/data
     environment:
@@ -535,8 +535,8 @@ services:
     image: mongo-express:latest
     container_name: mongo_express_container
     restart: always
-    ports:
-      - "8081:8081"
+    expose:
+      - "8081"
     environment:
       - ME_CONFIG_MONGODB_URL=mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@audit-mongodb:27017/
       - ME_CONFIG_MONGODB_SERVER=audit-mongodb
