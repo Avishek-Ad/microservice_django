@@ -110,6 +110,40 @@ server {
     }
 
     # -------------------------------------------------------------
+    # INTERFACES (Subpath Proxies)
+    # -------------------------------------------------------------
+
+    # KAFKA UI
+    location /kafka/ {
+        proxy_pass http://kafka_ui_backend/;
+        
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+
+    # MINIO CONSOLE
+    location /minio/ {
+        proxy_pass http://minio_console/;
+
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+
+    # OPENSEARCH DASHBOARDS
+    location /opensearch/ {
+        proxy_pass http://opensearch_ui/opensearch/;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header Host $host;
+    }
+
+    # MONGO EXPRESS
+    location /mongo/ {
+        proxy_pass http://mongo_express_ui/mongo/;
+    }
+
+    # -------------------------------------------------------------
     # OTHER ROUTES (Media & Frontend)
     # -------------------------------------------------------------
     location /media/ {
@@ -118,95 +152,5 @@ server {
 
     location / {
         proxy_pass http://frontend_application/;
-    }
-}
-
-# -------------------------------------------------------------
-# MINIO CONSOLE (Port 9001 - HTTPS)
-# -------------------------------------------------------------
-server {
-    listen 9001 ssl;
-    server_name abishek.gaurav-lamichhane.com.np;
-
-    ssl_certificate /etc/letsencrypt/live/abishek.gaurav-lamichhane.com.np/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/abishek.gaurav-lamichhane.com.np/privkey.pem;
-
-    proxy_set_header Host $http_host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-
-    location / {
-        proxy_pass http://minio_console;
-
-        # WebSocket support required for MinIO Console UI
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-    }
-}
-
-# -------------------------------------------------------------
-# KAFKA UI (Port 8080 - HTTPS)
-# -------------------------------------------------------------
-server {
-    listen 8080 ssl;
-    server_name abishek.gaurav-lamichhane.com.np;
-
-    ssl_certificate /etc/letsencrypt/live/abishek.gaurav-lamichhane.com.np/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/abishek.gaurav-lamichhane.com.np/privkey.pem;
-
-    proxy_set_header Host $http_host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-
-    location / {
-        proxy_pass http://kafka_ui_backend;
-        
-        # WebSocket support for Kafka event streaming UI
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-    }
-}
-
-# -------------------------------------------------------------
-# OPENSEARCH DASHBOARDS (Port 5601 - HTTPS)
-# -------------------------------------------------------------
-server {
-    listen 5601 ssl;
-    server_name abishek.gaurav-lamichhane.com.np;
-
-    ssl_certificate /etc/letsencrypt/live/abishek.gaurav-lamichhane.com.np/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/abishek.gaurav-lamichhane.com.np/privkey.pem;
-
-    proxy_set_header Host $http_host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-
-    location / {
-        proxy_pass http://opensearch_ui;
-    }
-}
-
-# -------------------------------------------------------------
-# MONGO EXPRESS (Port 8081 - HTTPS)
-# -------------------------------------------------------------
-server {
-    listen 8081 ssl;
-    server_name abishek.gaurav-lamichhane.com.np;
-
-    ssl_certificate /etc/letsencrypt/live/abishek.gaurav-lamichhane.com.np/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/abishek.gaurav-lamichhane.com.np/privkey.pem;
-
-    proxy_set_header Host $http_host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-
-    location / {
-        proxy_pass http://mongo_express_ui;
     }
 }
