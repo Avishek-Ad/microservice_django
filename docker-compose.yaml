@@ -359,6 +359,7 @@ services:
       - MINIO_STORAGE_SECRET_KEY=${MINIO_STORAGE_SECRET_KEY}
       - MINIO_STORAGE_BUCKET_NAME=${MINIO_STORAGE_BUCKET_NAME}
       - MEDIA_URL_PREFIX=${MEDIA_URL_PREFIX}
+      - MINIO_PUBLIC_ENDPOINT=${MINIO_PUBLIC_ENDPOINT}
     restart: always
     networks:
       - microservice-network
