@@ -195,7 +195,7 @@ server {
 # 5. MONGO EXPRESS (Port 8081 - HTTPS)
 # -------------------------------------------------------------
 server {
-    listen 8081 ssl;
+    listen 3000 ssl;
     server_name abishek.gaurav-lamichhane.com.np;
 
     ssl_certificate /etc/letsencrypt/live/abishek.gaurav-lamichhane.com.np/fullchain.pem;

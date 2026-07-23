@@ -535,8 +535,8 @@ services:
     image: mongo-express:latest
     container_name: mongo_express_container
     restart: always
-    ports:
-      - "3000:8081"
+    expose:
+      - "8081"
     environment:
       - ME_CONFIG_MONGODB_URL=mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@audit-mongodb:27017/
       - ME_CONFIG_MONGODB_SERVER=audit-mongodb
