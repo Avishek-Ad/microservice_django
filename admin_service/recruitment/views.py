@@ -14,7 +14,7 @@ class PublicAdminJobListAPIView(APIView):
         summary="Fetch active job postings",
         responses={200: JobPostingSerializer(many=True)}
     )
-    def get(self, response):
+    def get(self, request):
         jobs = JobPosting.objects.filter(is_active=True).order_by('-created_at')
         serializer = JobPostingSerializer(jobs, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
@@ -73,7 +73,7 @@ class JobApplicationsStatusChange(APIView):
             job_posting = JobPosting.objects.get(id=job_id)
             application = job_posting.applications.get(user_application_id=user_app_id)
             if new_status == "under_review":
-                application.review_status = AdminApplicationReviewStatus.UNDER_REVIEW,
+                application.review_status = AdminApplicationReviewStatus.UNDER_REVIEW
             elif new_status == "hired":
                 application.review_status = AdminApplicationReviewStatus.HIRED
             elif new_status == "rejected":
@@ -82,6 +82,6 @@ class JobApplicationsStatusChange(APIView):
                 return Response({"message": "the given status was not among accepted status"}, status=status.HTTP_400_BAD_REQUEST)
             application.save()
             return Response({"message": f"{user_app_id} is {new_status} for job id {job_id}"}, status=status.HTTP_200_OK)
-        except job_posting.DoesNotExist or AdminApplicationReview.DoesNotExist:
+        except (JobPosting.DoesNotExist, AdminApplicationReview.DoesNotExist):
             return Response({"message": f"Job Application of job_id {job_id} and application_id {user_app_id} not found"}, status=status.HTTP_404_NOT_FOUND)
                 

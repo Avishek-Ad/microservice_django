@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:  
+  audit-mongodb:
+    image: mongo:4.4
+    container_name: mongodb_container
+    restart: always
+    ports:
+      - "27017:27017" 
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=root
+      - MONGO_INITDB_ROOT_PASSWORD=securepassword123
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongo localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    networks:
+      - microservice-network
+  
+  audit-service:
+    build:
+      context: ./audit_service
+      dockerfile: Dockerfile
+    container_name: audit_app
+    command: python manage.py runserver 0.0.0.0:8002
+    volumes:
+      - ./audit_service:/app
+    ports:
+      - 8002:8002
+    depends_on:
+      audit-mongodb:
+        condition: service_healthy
+    env_file:
+      - ./audit_service/.env
+    environment:
+      - MONGODB_URL=mongodb://root:securepassword123@audit-mongodb:27017/
+      - KAFKA_BOOTSTRAP_SERVER=kafka:9092
+    networks:
+      - microservice-network
+  
+volumes:
+  mongo_data: {}
+
+networks:
+  microservice-network:
+    driver: bridge

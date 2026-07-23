@@ -1,8 +1,8 @@
 from django.contrib import admin
-from .models import JobApplication, candidateProfile, PublishedEvent
+from .models import JobApplication, CandidateProfile, PublishedEvent
 from django.utils.html import format_html
 
-admin.site.register(candidateProfile)
+admin.site.register(CandidateProfile)
 admin.site.register(PublishedEvent)
 
 @admin.register(JobApplication)

@@ -97,15 +97,15 @@ jobs:
             # Run Django Microservice Tests
             - name: Run Admin Service Tests
               run: |
-                docker compose exec -T admin-service python manage.py test --noinput || true
+                docker compose exec -T admin-service python manage.py test --noinput
 
             - name: Run User Service Tests
               run: |
-                docker compose exec -T user-service python manage.py test --noinput || true
+                docker compose exec -T user-service python manage.py test --noinput
 
             - name: Run Audit Service Tests
               run: |
-                docker compose exec -T audit-service python manage.py test --noinput || true
+                docker compose exec -T audit-service python manage.py test --noinput
 
             # Clean up Docker Containers
             - name: Tear Down Stack

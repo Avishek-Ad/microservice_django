@@ -1,7 +1,7 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from .models import candidateProfile, JobApplication
+from .models import CandidateProfile, JobApplication
 from django.conf import settings
 from .models import PublishedEvent
 from django.db import transaction
@@ -164,7 +164,7 @@ class ApplyJobAPIView(APIView):
         
         with transaction.atomic():
             # getting or creating candidate record
-            candidate, _ = candidateProfile.objects.get_or_create(
+            candidate, _ = CandidateProfile.objects.get_or_create(
                 email=email,
                 defaults={
                     'full_name': full_name,

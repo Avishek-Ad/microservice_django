@@ -17,6 +17,7 @@ class JobApplicationSerializer(serializers.ModelSerializer):
     class Meta:
         model = AdminApplicationReview
         fields = [
+            'id',
             'user_application_id',
             'candidate_name',
             'candidate_email',

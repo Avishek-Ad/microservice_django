@@ -9,7 +9,7 @@ def user_directory_path(instance, filename):
     random_short_code = uuid.uuid4().hex[:8] # "f3b89a2c"
     return f"{file_path.stem}-{random_short_code}{file_path.suffix}"
 
-class candidateProfile(models.Model):
+class CandidateProfile(models.Model):
     full_name = models.CharField(max_length=200)
     email = models.EmailField(unique=True)
     skills = models.TextField(help_text="comma seperated skills eg; python,django")
@@ -24,7 +24,7 @@ class JobApplicationStatus(models.TextChoices):
     
     
 class JobApplication(models.Model):
-    candidate = models.ForeignKey(candidateProfile, on_delete=models.CASCADE)
+    candidate = models.ForeignKey(CandidateProfile, on_delete=models.CASCADE)
     job_id = models.IntegerField() # job id from admin services
     status = models.CharField(
         max_length=8, 
