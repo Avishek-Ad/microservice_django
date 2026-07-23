@@ -341,7 +341,7 @@ services:
       redis:
         condition: service_healthy   # Wait until redis-cli ping succeeds
       user-postgres:
-        condition: service_started
+        condition: service_healthy
     env_file:
       - ./user_service/.env
     environment:
