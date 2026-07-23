@@ -25,6 +25,10 @@ services:
     ports:
       - "80:80"
       - "443:443"
+      - "9001:9001"   # MinIO Console UI
+      - "8080:8080"   # Kafka UI
+      - "5601:5601"   # OpenSearch Dashboards
+      - "8081:8081"   # Mongo Express
     volumes:
       - /etc/letsencrypt:/etc/letsencrypt:ro
     depends_on:
@@ -32,6 +36,9 @@ services:
       - admin-service
       - audit-service
       - minio
+      - kafka-ui
+      - opensearch-dashboards
+      - mongo-express
       - frontend
     restart: always
     networks:
@@ -127,6 +134,22 @@ services:
     restart: always
     networks:
       - microservice-network
+  
+  kafka-ui:
+    image: kafbat/kafka-ui:latest
+    container_name: kafka-ui
+    ports:
+      - "8080:8080"
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: always
+    environment:
+      DYNAMIC_CONFIG_ENABLED: 'true'
+      KAFKA_CLUSTERS_0_NAME: 'local-kraft-cluster'
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: 'kafka:29092'
+    networks:
+      - microservice-network
 
   opensearch-node:
     image: opensearchproject/opensearch:2.14.0
@@ -160,6 +183,21 @@ services:
       resources:
         limits:
           memory: 1.5G
+    restart: always
+    networks:
+      - microservice-network
+  
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:2.14.0
+    container_name: opensearch-dashboards
+    ports:
+      - "5601:5601" # UI port accessible at http://localhost:5601
+    environment:
+      - OPENSEARCH_HOSTS=["http://opensearch-node:9200"]
+      - DISABLE_SECURITY_PLUGIN=true                     # Must match the node security setting
+    depends_on:
+      opensearch-node:
+        condition: service_healthy
     restart: always
     networks:
       - microservice-network
@@ -490,5 +528,27 @@ services:
       - audit-mongodb
       - kafka
     restart: always
+    networks:
+      - microservice-network
+
+  mongo-express:
+    image: mongo-express:latest
+    container_name: mongo_express_container
+    restart: always
+    ports:
+      - "8081:8081"
+    environment:
+      - ME_CONFIG_MONGODB_URL=mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@audit-mongodb:27017/
+      - ME_CONFIG_MONGODB_SERVER=audit-mongodb
+      - ME_CONFIG_MONGODB_PORT=27017
+      - ME_CONFIG_MONGODB_ADMINUSERNAME=${MONGO_INITDB_ROOT_USERNAME}
+      - ME_CONFIG_MONGODB_ADMINPASSWORD=${MONGO_INITDB_ROOT_PASSWORD}
+      - ME_CONFIG_MONGODB_ENABLE_ADMIN=true
+      
+      # This turns off the web pop-up screen login
+      - ME_CONFIG_BASICAUTH=false
+    depends_on:
+      audit-mongodb:
+        condition: service_healthy
     networks:
       - microservice-network
