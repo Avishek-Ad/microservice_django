@@ -123,7 +123,7 @@ class JobListCreateAPIViewTest(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("title", response.data)
         
-class JobRetriveUpdateDestroyAPIViewTest(APITestCase):
+class JobRetriveUpdateAPIViewTest(APITestCase):
     @classmethod
     def setUpTestData(cls):
         cls.job = JobPosting.objects.create(
@@ -182,18 +182,18 @@ class JobRetriveUpdateDestroyAPIViewTest(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('title', response.data)
         
-    def test_delete_job_success(self):
-        initial_count = JobPosting.objects.count()
+    # def test_delete_job_success(self):
+    #     initial_count = JobPosting.objects.count()
         
-        response = self.client.delete(self.url)
+    #     response = self.client.delete(self.url)
         
-        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
-        self.assertEqual(JobPosting.objects.count(), initial_count - 1)
-        self.assertFalse(JobPosting.objects.filter(pk=self.job.pk).exists())
+    #     self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+    #     self.assertEqual(JobPosting.objects.count(), initial_count - 1)
+    #     self.assertFalse(JobPosting.objects.filter(pk=self.job.pk).exists())
 
-    def test_delete_job_not_found(self):
-        response = self.client.delete(self.invalid_url)
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+    # def test_delete_job_not_found(self):
+    #     response = self.client.delete(self.invalid_url)
+    #     self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
 class JobApplicationsListAPIViewTest(APITestCase):
     @classmethod
