@@ -2,6 +2,8 @@ version: '3.8'
 
 volumes:
   user_postgres_data: {}
+  admin_postgres_data: {}
+  minio-data: {}
 
 networks:
   microservice-network:
@@ -23,6 +25,29 @@ services:
       resources:
         limits:
           memory: 256M
+    networks:
+      - microservice-network
+
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    restart: always
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio-data:/data
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+      MINIO_SERVER_URL: "http://localhost:9000"
+      MINIO_BROWSER_REDIRECT_URL: "http://localhost:9001"
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
     networks:
       - microservice-network
   
@@ -82,6 +107,43 @@ services:
       - MINIO_STORAGE_ENDPOINT=minio:9000
       - MINIO_STORAGE_ACCESS_KEY=minioadmin
       - MINIO_STORAGE_SECRET_KEY=minioadmin123
-      - MINIO_STORAGE_BUCKET_NAME=django-media
+      - MINIO_STORAGE_BUCKET_NAME=user-media
+      - MEDIA_URL_PREFIX=localhost:9000/media
+    networks:
+      - microservice-network
+  
+  admin-postgres:
+    image: postgres:16-alpine
+    container_name: admin_postgres
+    restart: always
+    environment:
+      POSTGRES_DB: admin_postgres_db   
+      POSTGRES_USER: admin      
+      POSTGRES_PASSWORD: admin_postgress_secure_password
+    ports:
+      - "5433:5432"
+    volumes:
+      - admin_postgres_data:/var/lib/postgresql/data
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    networks:
+      - microservice-network
+  
+  admin-service:
+    build:
+      context: ./admin_service
+      dockerfile: Dockerfile
+    container_name: admin_app
+    command: python manage.py runserver 0.0.0.0:8001
+    volumes:
+      - ./admin_service:/app
+    ports:
+      - 8001:8001
+    depends_on:
+      - admin-postgres
+    env_file:
+      - ./admin_service/.env
     networks:
       - microservice-network

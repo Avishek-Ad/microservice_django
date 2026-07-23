@@ -75,8 +75,8 @@ export default function UserJobsPage() {
             setLoading(true);
             setError(null);
             try {
-                // search/?q=${encodeURIComponent(searchQuery)}&department=${encodeURIComponent(department)}
-                const url = `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/v1/user/jobs/search/?q=${encodeURIComponent(searchQuery)}&department=${encodeURIComponent(department)}`;
+                // /api/v1/user/jobs/search/?q=${encodeURIComponent(searchQuery)}&department=${encodeURIComponent(department)}
+                const url = `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/v1/user/jobs/search/?q=${encodeURIComponent(searchQuery)}&department=${encodeURIComponent(department)}` 
                 const response = await fetch(url);
                 if (!response.ok) {
                     throw new Error("Failed to load available positions");
@@ -99,70 +99,105 @@ export default function UserJobsPage() {
         return () => clearTimeout(delayDebounceFn);
     }, [searchQuery, department]);
 
-    // Handle Application Submit Form Actions
     const handleApply = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!selectedJob) return;
+    e.preventDefault();
+    if (!selectedJob) return;
 
-        setSubmitting(true);
-        setSubmitMessage(null);
+    setSubmitting(true);
+    setSubmitMessage(null);
 
-        try {
-            // 1. Grab the target file directly out of the DOM file element context
-            const fileInput = document.getElementById(
-                "resumeUpload",
-            ) as HTMLInputElement;
-            const file = fileInput?.files?.[0];
+    try {
+        // Grab the target file directly out of the DOM file element context
+        const fileInput = document.getElementById("resumeUpload") as HTMLInputElement;
+        const file = fileInput?.files?.[0];
 
-            if (!file) {
-                throw new Error("Please upload your resume file to proceed.");
-            }
-
-            // 2. Initialize a native browser FormData instance container
-            const formData = new FormData();
-            formData.append("email", email);
-            formData.append("full_name", fullName);
-            formData.append("job_id", selectedJob.id.toString());
-            formData.append("skills", skills); // Comma separated values string
-            formData.append("resume", file); // Attaching the file binary safely
-
-            // 3. Dispatch data. DO NOT set 'Content-Type' header here;
-            // The browser automatically configures Multipart boundaries if FormData is specified.
-            const response = await fetch(
-                `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/v1/user/apply/`,
-                {
-                    method: "POST",
-                    body: formData,
-                },
-            );
-
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                throw new Error(
-                    errorData.error || "Failed to submit application payload.",
-                );
-            }
-
-            setSubmitMessage({
-                type: "success",
-                text: "Application submitted successfully!",
-            });
-
-            // Clear states
-            setEmail("");
-            setFullName("");
-            setSkills("");
-            if (fileInput) fileInput.value = ""; // Clear file selector UI box element
-            setTimeout(() => setSelectedJob(null), 2000);
-        } catch (err: any) {
-            setSubmitMessage({
-                type: "error",
-                text: err.message || "Something went wrong.",
-            });
-        } finally {
-            setSubmitting(false);
+        if (!file) {
+            throw new Error("Please upload your resume file to proceed.");
         }
-    };
+
+        // --- STEP 1: Get the Presigned PUT URL and Target Path from Django ---
+        const urlResponse = await fetch(
+            `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/v1/user/generate-file-upload-path/`,
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ filename: file.name }),
+            }
+        );
+
+        if (!urlResponse.ok) {
+            throw new Error("Failed to generate direct secure upload path from storage server.");
+        }
+
+        const { upload_url, file_path } = await urlResponse.json();
+
+        // --- STEP 2: Upload the Raw File Directly to MinIO via PUT ---
+        // CRUCIAL: Pass the raw `file` directly in the body, NOT wrapped inside a FormData instance!
+        const minioResponse = await fetch(upload_url, {
+            method: "PUT",
+            body: file, 
+        });
+        console.log(minioResponse)
+
+        if (!minioResponse.ok) {
+            throw new Error("Failed to stream binary object data straight to cloud cluster.");
+        }
+
+        // --- STEP 3: Submit Form Fields + The Storage Path String to Django ---
+        // Since we are no longer uploading a binary payload file to Django, 
+        // we can use standard, lightweight application/json instead of multipart/form-data.
+        console.log({
+                    email: email,
+                    full_name: fullName,
+                    job_id: selectedJob.id,
+                    skills: skills,
+                    resume: file_path,
+                })
+        const response = await fetch(
+            `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/v1/user/apply/`,
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    email: email,
+                    full_name: fullName,
+                    job_id: selectedJob.id,
+                    skills: skills,
+                    resume: file_path, // Pass the text path string we saved to our FileField column
+                }),
+            }
+        );
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error || "Failed to submit final registration details.");
+        }
+
+        setSubmitMessage({
+            type: "success",
+            text: "Application submitted successfully!",
+        });
+
+        // Clear states
+        setEmail("");
+        setFullName("");
+        setSkills("");
+        if (fileInput) fileInput.value = ""; // Clear file selector UI box element
+        setTimeout(() => setSelectedJob(null), 2000);
+
+    } catch (err: any) {
+        setSubmitMessage({
+            type: "error",
+            text: err.message || "Something went wrong.",
+        });
+    } finally {
+        setSubmitting(false);
+    }
+};
 
     return (
         <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">

@@ -199,11 +199,20 @@ AWS_SECRET_ACCESS_KEY=os.getenv("MINIO_STORAGE_SECRET_KEY", "minioadmin123")
 AWS_STORAGE_BUCKET_NAME=os.getenv("MINIO_STORAGE_BUCKET_NAME", "django-media")
 
 AWS_S3_URL_PROTOCOL = os.getenv('AWS_S3_URL_PROTOCOL', 'http:')
-AWS_S3_SECURE_URLS = os.getenv('AWS_S3_SECURE_URLS') == "True"
+AWS_S3_SECURE_URLS = os.getenv('AWS_S3_SECURE_URLS').lower() == "true"
+
+MINIO_ENDPOINT = os.getenv("MINIO_STORAGE_ENDPOINT", "minio:9000")
 AWS_S3_ENDPOINT_URL=f"http://{os.environ.get('MINIO_STORAGE_ENDPOINT', 'localhost:9000')}"
+
 AWS_S3_CUSTOM_DOMAIN=f"{os.getenv("MEDIA_URL_PREFIX")}/{AWS_STORAGE_BUCKET_NAME}" # api_gateway url build sothat it can be routed
+media_prefix = os.getenv("MEDIA_URL_PREFIX", "http://localhost:9000")
+
 AWS_QUERYSTRING_AUTH=False # set true for expiring link
 AWS_S3_US_EAST_1_REGIONAL_ENDPOINT=False # minio is local to the hosted place
+
+# Endpoints
+MINIO_INTERNAL_ENDPOINT = os.getenv("MINIO_STORAGE_ENDPOINT", "minio:9000")
+MINIO_PUBLIC_ENDPOINT = os.getenv("MINIO_PUBLIC_ENDPOINT", "localhost:9000")
 
 # rest framework and api docs using swagger
 REST_FRAMEWORK = {

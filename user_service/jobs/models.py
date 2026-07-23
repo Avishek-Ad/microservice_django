@@ -4,6 +4,14 @@ from pathlib import Path
 from django.core.validators import FileExtensionValidator
 import uuid
 
+def generate_resume_storage_path(filename: str) -> str:
+    file_path = Path(filename)
+    random_short_code = uuid.uuid4().hex[:8]  # e.g., "f3b89a2c"
+    
+    # Store it inside a clean folder structure, e.g., "documents/resumes/"
+    return f"{file_path.stem}-{random_short_code}{file_path.suffix}"
+
+
 def user_directory_path(instance, filename):
     file_path = Path(filename)
     random_short_code = uuid.uuid4().hex[:8] # "f3b89a2c"

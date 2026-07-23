@@ -1,17 +1,147 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from .models import CandidateProfile, JobApplication
+from .models import CandidateProfile, JobApplication, generate_resume_storage_path
 from django.conf import settings
 from .models import PublishedEvent
 from django.db import transaction
 from datetime import datetime, timezone
 from opensearch_client import get_opensearch_client
-from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes, inline_serializer
 from rest_framework import serializers
 import requests
 import uuid
+import logging
+from minio import Minio
+import hmac
+import hashlib
+import urllib.parse
+logger = logging.getLogger(__name__)
+
+# Single internal client strictly for bucket management inside Docker
+internal_minio_client = Minio(
+    endpoint=getattr(settings, "MINIO_INTERNAL_ENDPOINT", "minio:9000"),
+    access_key=settings.AWS_ACCESS_KEY_ID,
+    secret_key=settings.AWS_SECRET_ACCESS_KEY,
+    secure=settings.AWS_S3_SECURE_URLS,
+)
+
+def generate_presigned_put_url(bucket: str, object_name: str, expires_in=900) -> str:
+    """
+    Manually constructs an AWS Signature V4 presigned PUT URL specifically
+    for browser consumption on 'localhost:9000'.
+    """
+    access_key = settings.AWS_ACCESS_KEY_ID
+    secret_key = settings.AWS_SECRET_ACCESS_KEY
+    host = getattr(settings, "MINIO_PUBLIC_ENDPOINT", "localhost:9000")
+    region = "us-east-1"
+    service = "s3"
+
+    now = datetime.now(timezone.utc)
+    amz_date = now.strftime("%Y%m%dT%H%M%SZ")
+    date_stamp = now.strftime("%Y%m%d")
+
+    credential_scope = f"{date_stamp}/{region}/{service}/aws4_request"
+    canonical_uri = f"/{bucket}/{urllib.parse.quote(object_name)}"
+
+    query_params = {
+        "X-Amz-Algorithm": "AWS4-HMAC-SHA256",
+        "X-Amz-Credential": f"{access_key}/{credential_scope}",
+        "X-Amz-Date": amz_date,
+        "X-Amz-Expires": str(expires_in),
+        "X-Amz-SignedHeaders": "host",
+    }
+
+    # Sorted canonical query string
+    canonical_querystring = urllib.parse.urlencode(sorted(query_params.items()))
+    canonical_headers = f"host:{host}\n"
+    signed_headers = "host"
+    payload_hash = "UNSIGNED-PAYLOAD"
+
+    canonical_request = f"PUT\n{canonical_uri}\n{canonical_querystring}\n{canonical_headers}\n{signed_headers}\n{payload_hash}"
+
+    # Create string to sign
+    algorithm = "AWS4-HMAC-SHA256"
+    string_to_sign = f"{algorithm}\n{amz_date}\n{credential_scope}\n{hashlib.sha256(canonical_request.encode('utf-8')).hexdigest()}"
+
+    # Calculate signing key
+    def sign(key, msg):
+        return hmac.new(key, msg.encode("utf-8"), hashlib.sha256).digest()
+
+    k_date = sign(f"AWS4{secret_key}".encode("utf-8"), date_stamp)
+    k_region = sign(k_date, region)
+    k_service = sign(k_region, service)
+    k_signing = sign(k_service, "aws4_request")
+
+    signature = hmac.new(k_signing, string_to_sign.encode("utf-8"), hashlib.sha256).hexdigest()
+
+    return f"http://{host}{canonical_uri}?{canonical_querystring}&X-Amz-Signature={signature}"
+
+
+class GeneratePresignedUrlView(APIView):
+    def post(self, request):
+        filename = request.data.get("filename", "resume.pdf") if request.data else "resume.pdf"
+        target_path = generate_resume_storage_path(filename)
+        bucket_name = settings.AWS_STORAGE_BUCKET_NAME
+
+        try:
+            # 1. Direct Docker-to-Docker bucket existence check
+            if not internal_minio_client.bucket_exists(bucket_name):
+                internal_minio_client.make_bucket(bucket_name)
+
+            # 2. Pure local SigV4 signature for localhost:9000 (No network calls made!)
+            presigned_put_url = generate_presigned_put_url(
+                bucket=bucket_name,
+                object_name=target_path,
+                expires_in=900
+            )
+
+            return Response({
+                "upload_url": presigned_put_url,
+                "file_path": target_path
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            logger.exception("Error generating presigned URL")
+            return Response(
+                {"detail": f"MinIO Error: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+# class GeneratePresignedUrlView(APIView):
+#     def post(self, request):
+#         filename = request.data.get("filename", "resume.pdf") if request.data else "resume.pdf"
+#         target_path = generate_resume_storage_path(filename)
+#         bucket_name = settings.AWS_STORAGE_BUCKET_NAME
+
+#         try:
+#             # Ensure bucket exists
+#             if not minio_client.bucket_exists(bucket_name):
+#                 minio_client.make_bucket(bucket_name)
+
+#             # Generate presigned PUT URL for upload
+#             presigned_put_url = minio_client.presigned_put_object(
+#                 bucket_name=bucket_name,
+#                 object_name=target_path,
+#                 expires=timedelta(minutes=15),
+#             )
+
+#             # Replace internal Docker service name ('minio:9000') with browser-accessible 'localhost:9000'
+#             if "minio:9000" in presigned_put_url:
+#                 presigned_put_url = presigned_put_url.replace("minio:9000", "localhost:9000")
+
+#             return Response({
+#                 "upload_url": presigned_put_url,
+#                 "file_path": target_path
+#             }, status=status.HTTP_200_OK)
+
+#         except Exception as e:
+#             logger.exception("Error generating presigned URL")
+#             return Response(
+#                 {"detail": f"MinIO Error: {str(e)}"},
+#                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
+#             )
 
 class JobSearchAPIView(APIView):
     @extend_schema(
@@ -125,7 +255,7 @@ class JobListAPIView(APIView):
         
     
 class ApplyJobAPIView(APIView):
-    parser_classes = [MultiPartParser, FormParser]
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
 
     @extend_schema(
         summary="Submit a job application with resume file",
@@ -157,7 +287,8 @@ class ApplyJobAPIView(APIView):
         full_name = request.data.get("full_name")
         job_id = request.data.get("job_id")
         skills = request.data.get("skills")
-        resume = request.FILES.get('resume')
+        resume = request.data.get('resume')
+        print(request.data)
         
         if not email or not full_name or not job_id or not resume:
             return Response({'error': "Missing mandatory fields"}, status=status.HTTP_400_BAD_REQUEST)
