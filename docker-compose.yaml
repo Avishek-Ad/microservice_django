@@ -319,6 +319,11 @@ services:
       - "5432"
     volumes:
       - user_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${USER_POSTGRES_USER:-user} -d ${USER_POSTGRES_DB:-user_postgres_db}"]
+      interval: 3s
+      timeout: 3s
+      retries: 5
     deploy:
       resources:
         limits:
