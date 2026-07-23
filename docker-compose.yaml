@@ -29,6 +29,7 @@ services:
       - "8080:8080"   # Kafka UI
       - "5601:5601"   # OpenSearch Dashboards
       - "8081:8081"   # Mongo Express
+      - "3000:3000"
     volumes:
       - /etc/letsencrypt:/etc/letsencrypt:ro
     depends_on:
