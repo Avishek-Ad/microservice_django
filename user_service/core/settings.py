@@ -28,7 +28,8 @@ SECRET_KEY = os.getenv("SECRET_KEY")
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv("DEBUG") == "1"
 
-ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS").split(",")
+allowed_hosts_env = os.getenv("ALLOWED_HOSTS", "*")
+ALLOWED_HOSTS = [host.strip() for host in allowed_hosts_env.split(",") if host.strip()]
 
 CORS_ALLOW_ALL_ORIGINS = True
 
