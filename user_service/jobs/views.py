@@ -81,7 +81,7 @@ def generate_presigned_put_url(bucket: str, object_name: str, expires_in=900) ->
 
     signature = hmac.new(k_signing, string_to_sign.encode("utf-8"), hashlib.sha256).hexdigest()
 
-    return f"{scheme}://{host}{canonical_uri}?{canonical_querystring}&X-Amz-Signature={signature}"
+    return f"{scheme}://{host}/media/{canonical_uri}?{canonical_querystring}&X-Amz-Signature={signature}"
 
 
 class GeneratePresignedUrlView(APIView):
