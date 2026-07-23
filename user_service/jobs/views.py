@@ -24,7 +24,7 @@ internal_minio_client = Minio(
     endpoint=getattr(settings, "MINIO_INTERNAL_ENDPOINT", "minio:9000"),
     access_key=settings.AWS_ACCESS_KEY_ID,
     secret_key=settings.AWS_SECRET_ACCESS_KEY,
-    secure=settings.AWS_S3_SECURE_URLS,
+    secure=False,
 )
 
 def generate_presigned_put_url(bucket: str, object_name: str, expires_in=900) -> str:
@@ -37,6 +37,11 @@ def generate_presigned_put_url(bucket: str, object_name: str, expires_in=900) ->
     host = getattr(settings, "MINIO_PUBLIC_ENDPOINT", "localhost:9000")
     region = "us-east-1"
     service = "s3"
+    
+    use_secure = getattr(settings, "AWS_S3_SECURE_URLS", True)
+    if isinstance(use_secure, str):
+        use_secure = use_secure.lower() == "true"
+    scheme = "https" if use_secure else "http"
 
     now = datetime.now(timezone.utc)
     amz_date = now.strftime("%Y%m%dT%H%M%SZ")
@@ -76,7 +81,7 @@ def generate_presigned_put_url(bucket: str, object_name: str, expires_in=900) ->
 
     signature = hmac.new(k_signing, string_to_sign.encode("utf-8"), hashlib.sha256).hexdigest()
 
-    return f"http://{host}{canonical_uri}?{canonical_querystring}&X-Amz-Signature={signature}"
+    return f"{scheme}://{host}{canonical_uri}?{canonical_querystring}&X-Amz-Signature={signature}"
 
 
 class GeneratePresignedUrlView(APIView):
