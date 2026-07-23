@@ -120,7 +120,7 @@ export default function AdminDashboard() {
   const deleteJob = async (id: number) => {
     if (!confirm("Are you sure you want to delete this job classification?")) return;
     try {
-      const res = await fetch(`${BASE_URL}/${id}/`, { method: "DELETE" });
+      const res = await fetch(`${BASE_URL}/${id}/delete/`, { method: "POST" });
       if (!res.ok) throw new Error("Failed to purge target system role.");
       if (selectedJobId === id) setSelectedJobId(null);
       fetchJobs();

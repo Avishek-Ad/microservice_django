@@ -1,7 +1,7 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, generics
-from drf_spectacular.utils import extend_schema, inline_serializer
+from drf_spectacular.utils import extend_schema, inline_serializer, OpenApiResponse
 from .models import JobPosting, AdminApplicationReview, AdminApplicationReviewStatus
 from .serializers import JobPostingSerializer, JobApplicationSerializer
 from rest_framework import serializers
@@ -25,12 +25,43 @@ class JobListCreateAPIView(
     queryset = JobPosting.objects.all()
     serializer_class = JobPostingSerializer
     
-class JobRetriveUpdateDestroyAPIView(
-    generics.RetrieveUpdateDestroyAPIView
+class JobRetriveUpdateAPIView(
+    generics.RetrieveUpdateAPIView
 ):
     queryset = JobPosting.objects.all()
     serializer_class = JobPostingSerializer
     lookup_field = "pk"
+    
+class JobDeleteThroughPostAPIView(APIView):
+    @extend_schema(
+        summary="Delete a job posting via POST",
+        description="Deletes a specific job posting based on the provided primary key (pk) in the URL route path.",
+        responses={
+            # Documenting the 204 No Content response
+            status.HTTP_204_NO_CONTENT: OpenApiResponse(
+                description="Job posting successfully deleted. No content is returned."
+            ),
+            # Documenting the 404 Error response structure
+            status.HTTP_404_NOT_FOUND: OpenApiResponse(
+                description="The specified job posting could not be found.",
+                # DRF automatically formats errors with a {"detail": "..."} schema
+            ),
+        },
+        # If your endpoint doesn't require a JSON body (since it relies on the URL path pk),
+        # setting request=None prevents Swagger from rendering an empty JSON text area box.
+        request=None 
+    )
+    def post(self, request, pk):
+        try:
+            job_post = JobPosting.objects.get(pk=pk)
+            job_post.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        except JobPosting.DoesNotExist:
+            return Response(
+                {"detail": "Job posting not found."}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
     
 class JobApplicationsListAPIView(APIView):
     @extend_schema(
