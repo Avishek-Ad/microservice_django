@@ -73,16 +73,20 @@ jobs:
                 docker compose up -d --build
 
             # Wait for Health Checks
-            - name: Wait for Healthy Stack
+            - name: Wait for stack Readiness
               run: |
-                echo "Waiting for core services (Kafka, Redis, OpenSearch, Postgres) to be healthy..."
+                echo "Waiting for all stack services to start..."
           
                 # Retry loop (max 120 seconds)
                 TIMEOUT=120
                 ELAPSED=0
-                until docker compose ps | grep -q "healthy"; do
-                  if [ $ELAPSED -ge $TIMEOUT ]; then
-                    echo "Timed out waiting for stack services to become healthy."
+                # Wait until application services show up in 'running' state
+                until docker compose ps --services --filter "status=running" | grep -q "user-service"; do
+                if [ $ELAPSED -ge $TIMEOUT ]; then
+                    echo "Timed out waiting for application services to start."
+                    echo "--- Container Status ---"
+                    docker compose ps -a
+                    echo "--- Stack Logs ---"
                     docker compose logs
                     exit 1
                   fi
