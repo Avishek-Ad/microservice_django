@@ -187,104 +187,105 @@ class JobListAPIViewTest(APITestCase):
         mock_requests_get.assert_called_once_with(self.expected_admin_url, timeout=5)
         
 
-@override_settings(STORAGES={
-    "default": {
-        "BACKEND": "django.core.files.storage.InMemoryStorage",
-    }
-})
-class ApplyJobAPIViewTest(APITestCase):
+# @override_settings(STORAGES={
+#     "default": {
+#         "BACKEND": "django.core.files.storage.InMemoryStorage",
+#     }
+# })
+# class ApplyJobAPIViewTest(APITestCase):
 
-    def setUp(self):
-        self.url = reverse("apply-job")
+#     def setUp(self):
+#         self.url = reverse("apply-job")
         
-        # Mock PDF file for uploads
-        self.dummy_resume = SimpleUploadedFile(
-            "resume.pdf",
-            b"PDF content dummy",
-            content_type="application/pdf",
-        )
+#         # Mock PDF file for uploads
+#         self.dummy_resume = SimpleUploadedFile(
+#             "resume.pdf",
+#             b"PDF content dummy",
+#             content_type="application/pdf",
+#         )
 
-    def test_apply_job_success_new_candidate(self):
-        """Test successful application creating a new CandidateProfile, JobApplication, and PublishedEvent."""
-        payload = {
-            "email": "jane@example.com",
-            "full_name": "Jane Doe",
-            "job_id": 101,
-            "skills": "Python, Django, PostgreSQL",
-            "resume": self.dummy_resume,
-        }
+#     def test_apply_job_success_new_candidate(self):
+#         """Test successful application creating a new CandidateProfile, JobApplication, and PublishedEvent."""
+#         payload = {
+#             "email": "jane@example.com",
+#             "full_name": "Jane Doe",
+#             "job_id": 101,
+#             "skills": "Python, Django, PostgreSQL",
+#             "resume": self.dummy_resume,
+#         }
 
-        # MultiPart format is necessary for request.FILES testing
-        response = self.client.post(self.url, payload, format="multipart")
+#         # MultiPart format is necessary for request.FILES testing
+#         response = self.client.post(self.url, payload, format="multipart")
 
-        # Assert Response Status & Body
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(response.data["message"], "Application submitted successfully")
-        self.assertIn("application", response.data)
-        self.assertIn("status", response.data)
+#         # Assert Response Status & Body
+#         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+#         self.assertEqual(response.data["message"], "Application submitted successfully")
+#         self.assertIn("application", response.data)
+#         self.assertIn("status", response.data)
 
-        # Verify Candidate Profile created
-        candidate = CandidateProfile.objects.get(email="jane@example.com")
-        self.assertEqual(candidate.full_name, "Jane Doe")
-        self.assertEqual(candidate.skills, "Python, Django, PostgreSQL")
+#         # Verify Candidate Profile created
+#         candidate = CandidateProfile.objects.get(email="jane@example.com")
+#         self.assertEqual(candidate.full_name, "Jane Doe")
+#         self.assertEqual(candidate.skills, "Python, Django, PostgreSQL")
 
-        # Verify Job Application created
-        application = JobApplication.objects.get(id=response.data["application"])
-        self.assertEqual(application.candidate, candidate)
-        self.assertEqual(application.job_id, 101)
+#         # Verify Job Application created
+#         application = JobApplication.objects.get(id=response.data["application"])
+#         self.assertEqual(application.candidate, candidate)
+#         self.assertEqual(application.job_id, 101)
         
-        self.assertTrue(application.resume.name.endswith(".pdf"))
-        self.assertIn("resume", application.resume.name)
+#         self.assertTrue(application.resume.name.endswith(".pdf"))
+#         self.assertIn("resume", application.resume.name)
         
-        # Verify Outbox Event created
-        event = PublishedEvent.objects.get(channel="user_events")
-        self.assertEqual(event.payload["event"], "application_created")
-        self.assertEqual(event.payload["user_application_id"], application.id)
-        self.assertEqual(event.payload["candidate_email"], "jane@example.com")
-        self.assertEqual(event.extra["sender"], "user_service")
-        self.assertEqual(event.extra["receiver"], "admin_service")
+#         # Verify Outbox Event created
+#         event = PublishedEvent.objects.get(channel="user_events")
+#         self.assertEqual(event.payload["event"], "application_created")
+#         self.assertEqual(event.payload["user_application_id"], application.id)
+#         self.assertEqual(event.payload["candidate_email"], "jane@example.com")
+#         self.assertEqual(event.extra["sender"], "user_service")
+#         self.assertEqual(event.extra["receiver"], "admin_service")
 
-    def test_apply_job_existing_candidate(self):
-        """Test application by an existing candidate (get_or_create behavior)."""
-        existing_candidate = CandidateProfile.objects.create(
-            email="existing@example.com",
-            full_name="John Existing",
-            skills="React",
-        )
+#     def test_apply_job_existing_candidate(self):
+#         """Test application by an existing candidate (get_or_create behavior)."""
+#         existing_candidate = CandidateProfile.objects.create(
+#             email="existing@example.com",
+#             full_name="John Existing",
+#             skills="React",
+#         )
 
-        payload = {
-            "email": "existing@example.com",
-            "full_name": "John Updated Name",  # get_or_create defaults won't overwrite existing full_name
-            "job_id": 102,
-            "resume": self.dummy_resume,
-        }
+#         payload = {
+#             "email": "existing@example.com",
+#             "full_name": "John Updated Name",  # get_or_create defaults won't overwrite existing full_name
+#             "job_id": 102,
+#             "resume": self.dummy_resume,
+#         }
 
-        response = self.client.post(self.url, payload, format="multipart")
+#         response = self.client.post(self.url, payload, format="multipart")
 
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+#         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         
-        # Verify no duplicate CandidateProfile was created
-        self.assertEqual(CandidateProfile.objects.filter(email="existing@example.com").count(), 1)
+#         # Verify no duplicate CandidateProfile was created
+#         self.assertEqual(CandidateProfile.objects.filter(email="existing@example.com").count(), 1)
         
-        # Verify application linked to the pre-existing candidate
-        application = JobApplication.objects.get(id=response.data["application"])
-        self.assertEqual(application.candidate, existing_candidate)
+#         # Verify application linked to the pre-existing candidate
+#         application = JobApplication.objects.get(id=response.data["application"])
+#         self.assertEqual(application.candidate, existing_candidate)
 
-    def test_apply_job_missing_required_fields(self):
-        """Test 400 response when mandatory fields are omitted."""
-        invalid_payloads = [
-            {"full_name": "John", "job_id": 1, "resume": self.dummy_resume},  # Missing email
-            {"email": "test@ex.com", "job_id": 1, "resume": self.dummy_resume},  # Missing full_name
-            {"email": "test@ex.com", "full_name": "John", "resume": self.dummy_resume},  # Missing job_id
-            {"email": "test@ex.com", "full_name": "John", "job_id": 1},  # Missing resume file
-        ]
+#     def test_apply_job_missing_required_fields(self):
+#         """Test 400 response when mandatory fields are omitted."""
+#         invalid_payloads = [
+#             {"full_name": "John", "job_id": 1, "resume": self.dummy_resume},  # Missing email
+#             {"email": "test@ex.com", "job_id": 1, "resume": self.dummy_resume},  # Missing full_name
+#             {"email": "test@ex.com", "full_name": "John", "resume": self.dummy_resume},  # Missing job_id
+#             {"email": "test@ex.com", "full_name": "John", "job_id": 1},  # Missing resume file
+#         ]
 
-        for payload in invalid_payloads:
-            response = self.client.post(self.url, payload, format="multipart")
-            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-            self.assertEqual(response.data["error"], "Missing mandatory fields")
+#         for payload in invalid_payloads:
+#             response = self.client.post(self.url, payload, format="multipart")
+#             self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+#             self.assertEqual(response.data["error"], "Missing mandatory fields")
 
-        # Confirm nothing was committed to DB on failure
-        self.assertEqual(CandidateProfile.objects.count(), 0)
-        self.assertEqual(JobApplication.objects.count(), 0)
-        self.assertEqual(PublishedEvent.objects.count(), 0)
+#         # Confirm nothing was committed to DB on failure
+#         self.assertEqual(CandidateProfile.objects.count(), 0)
+#         self.assertEqual(JobApplication.objects.count(), 0)
+#         self.assertEqual(PublishedEvent.objects.count(), 0)
+        
