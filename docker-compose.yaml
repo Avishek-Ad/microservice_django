@@ -209,7 +209,10 @@ services:
       context: ./admin_service
       dockerfile: Dockerfile
     container_name: admin_app
-    command: gunicorn core.wsgi:application --bind 0.0.0.0:8001 --workers 1 --timeout 120
+    command: >
+      sh -c "python manage.py makemigrations --noinput &&
+             python manage.py migrate --noinput &&
+             gunicorn core.wsgi:application --bind 0.0.0.0:8001 --workers 1 --timeout 120"
     expose:
       - "8001"
     depends_on:
@@ -320,7 +323,10 @@ services:
       context: ./user_service
       dockerfile: Dockerfile
     container_name: user_app
-    command: daphne -b 0.0.0.0 -p 8000 core.asgi:application
+    command: >
+      sh -c "python manage.py makemigrations --noinput &&
+             python manage.py migrate --noinput &&
+             daphne -b 0.0.0.0 -p 8000 core.asgi:application"
     expose:
       - "8000"
     depends_on:
