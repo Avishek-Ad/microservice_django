@@ -199,7 +199,7 @@ AWS_SECRET_ACCESS_KEY=os.getenv("MINIO_STORAGE_SECRET_KEY", "minioadmin123")
 AWS_STORAGE_BUCKET_NAME=os.getenv("MINIO_STORAGE_BUCKET_NAME", "django-media")
 
 AWS_S3_URL_PROTOCOL = os.getenv('AWS_S3_URL_PROTOCOL', 'http:')
-AWS_S3_SECURE_URLS = os.getenv('AWS_S3_SECURE_URLS').lower() == "true"
+AWS_S3_SECURE_URLS = os.getenv('AWS_S3_SECURE_URLS', 'False').lower() == "true"
 
 MINIO_ENDPOINT = os.getenv("MINIO_STORAGE_ENDPOINT", "minio:9000")
 AWS_S3_ENDPOINT_URL=f"http://{os.environ.get('MINIO_STORAGE_ENDPOINT', 'localhost:9000')}"
