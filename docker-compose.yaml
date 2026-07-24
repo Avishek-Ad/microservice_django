@@ -31,6 +31,8 @@ services:
       - "8081:8081"   # Mongo Express
       - "3000:3000"
       - "8000:8000"
+      - "5432:5432"
+      - "5433:5433"
     volumes:
       - /etc/letsencrypt:/etc/letsencrypt:ro
     depends_on:
@@ -238,8 +240,8 @@ services:
       POSTGRES_DB: ${ADMIN_POSTGRES_DB}   
       POSTGRES_USER: ${ADMIN_POSTGRES_USER}      
       POSTGRES_PASSWORD: ${ADMIN_POSTGRES_PASSWORD}
-    ports:
-      - "5432:5432"
+    expose:
+      - "5432"
     volumes:
       - admin_postgres_data:/var/lib/postgresql/data
     deploy:
@@ -355,8 +357,8 @@ services:
       POSTGRES_DB: ${USER_POSTGRES_DB}
       POSTGRES_USER: ${USER_POSTGRES_USER}
       POSTGRES_PASSWORD: ${USER_POSTGRES_PASSWORD}
-    ports:
-      - "5433:5432"
+    expose:
+      - "5432"
     volumes:
       - user_postgres_data:/var/lib/postgresql/data
     healthcheck:

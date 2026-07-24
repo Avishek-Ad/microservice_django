@@ -1,3 +1,27 @@
+stream {
+    upstream admin_postgres_tcp {
+        server admin-postgres:5432;
+    }
+
+    upstream user_postgres_tcp {
+        server user-postgres:5432;
+    }
+
+    server {
+        listen 5432;
+        proxy_pass admin_postgres_tcp;
+        proxy_timeout 1d;
+        proxy_connect_timeout 5s;
+    }
+
+    server {
+        listen 5433;
+        proxy_pass user_postgres_tcp;
+        proxy_timeout 1d;
+        proxy_connect_timeout 5s;
+    }
+}
+
 upstream user_backend {
     server user-service:8000;
 }
