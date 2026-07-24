@@ -199,6 +199,7 @@ services:
     environment:
       - OPENSEARCH_HOSTS=["http://opensearch-node:9200"]
       - DISABLE_SECURITY_PLUGIN=true                     # Must match the node security setting
+      - DISABLE_SECURITY_DASHBOARDS_PLUGIN=true
     depends_on:
       opensearch-node:
         condition: service_healthy
